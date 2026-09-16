@@ -16,6 +16,20 @@ const envSchema = z.object({
   MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
 
   LOG_LEVEL: z.string().default("info"),
+
+  GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
+
+  ACCESS_TOKEN_SECRET: z
+    .string()
+    .min(32, "ACCESS_TOKEN_SECRET should be at least 32 characters"),
+
+  REFRESH_TOKEN_SECRET: z
+    .string()
+    .min(32, "REFRESH_TOKEN_SECRET should be at least 32 characters"),
+
+  ACCESS_TOKEN_EXPIRES_IN: z.coerce.number().default(900),
+
+  REFRESH_TOKEN_EXPIRES_IN: z.coerce.number().default(604800),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
