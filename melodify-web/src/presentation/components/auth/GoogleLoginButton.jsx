@@ -18,19 +18,26 @@ export default function GoogleLoginButton() {
 
       await googleLogin(credentialResponse.credential);
 
-      // Google login successful
-      router.push("/");
+      router.replace("/");
     } catch (error) {
       console.error(error.response?.data?.message || "Google login failed");
     }
   };
 
   return (
-    <GoogleLogin
-      onSuccess={handleSuccess}
-      onError={() => {
-        console.error("Google authentication failed");
-      }}
-    />
+    <div className="flex w-full justify-center">
+      <GoogleLogin
+        onSuccess={handleSuccess}
+        onError={() => {
+          console.error("Google authentication failed");
+        }}
+        theme="filled_black"
+        size="large"
+        shape="pill"
+        text="continue_with"
+        logo_alignment="left"
+        width="372"
+      />
+    </div>
   );
 }

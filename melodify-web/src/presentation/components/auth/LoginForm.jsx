@@ -1,80 +1,184 @@
 "use client";
 
-import { useState } from "react";
-
 import Link from "next/link";
-
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
 
 import { useAuthStore } from "@/presentation/stores/auth.store";
 
 import GoogleLoginButton from "./GoogleLoginButton";
+import AuthShell from "./AuthShell";
 
 export default function LoginForm() {
   const router = useRouter();
 
   const login = useAuthStore((state) => state.login);
 
-  const [email, setEmail] = useState("");
+  const {
+    register,
+    handleSubmit,
+    setError,
 
-  const [password, setPassword] = useState("");
+    formState: { errors, isSubmitting },
+  } = useForm();
 
-  const [error, setError] = useState("");
-
-  const [loading, setLoading] = useState(false);
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-
+  const onSubmit = async (data) => {
     try {
-      setLoading(true);
-      setError("");
+      await login(data.email, data.password);
 
-      await login(email, password);
-
-      router.push("/");
+      router.replace("/");
     } catch (error) {
-      setError(error.response?.data?.message || "Login failed");
-    } finally {
-      setLoading(false);
+      setError("root", {
+        message: error.response?.data?.message || "Login failed",
+      });
     }
   };
 
   return (
-    <div>
-      <h1>Login to Melodify</h1>
+    <AuthShell title="Welcome back" subtitle="Login to continue listening">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        {/* Email */}
 
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          required
-        />
+        <div>
+          <label htmlFor="email" className="mb-2 block text-sm font-bold">
+            Email
+          </label>
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          required
-        />
+          <input
+            id="email"
+            type="email"
+            placeholder="name@domain.com"
+            {...register("email", {
+              required: "Email is required",
 
-        {error && <p>{error}</p>}
+              pattern: {
+                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Logging in..." : "Login"}
+                message: "Enter a valid email address",
+              },
+            })}
+            className="
+              w-full
+              rounded-md
+              border
+              border-neutral-600
+              bg-[#121212]
+              px-4
+              py-3.5
+              text-white
+              outline-none
+              transition
+              placeholder:text-neutral-500
+              hover:border-neutral-400
+              focus:border-white
+            "
+          />
+
+          {errors.email && (
+            <p className="mt-2 text-sm text-red-400">{errors.email.message}</p>
+          )}
+        </div>
+
+        {/* Password */}
+
+        <div>
+          <label htmlFor="password" className="mb-2 block text-sm font-bold">
+            Password
+          </label>
+
+          <input
+            id="password"
+            type="password"
+            placeholder="Enter your password"
+            {...register("password", {
+              required: "Password is required",
+
+              minLength: {
+                value: 8,
+                message: "Password must be at least 8 characters",
+              },
+            })}
+            className="
+              w-full
+              rounded-md
+              border
+              border-neutral-600
+              bg-[#121212]
+              px-4
+              py-3.5
+              text-white
+              outline-none
+              transition
+              placeholder:text-neutral-500
+              hover:border-neutral-400
+              focus:border-white
+            "
+          />
+
+          {errors.password && (
+            <p className="mt-2 text-sm text-red-400">
+              {errors.password.message}
+            </p>
+          )}
+        </div>
+
+        {/* Backend error */}
+
+        {errors.root && (
+          <div className="rounded-md bg-red-950/50 px-4 py-3 text-sm text-red-300">
+            {errors.root.message}
+          </div>
+        )}
+
+        {/* Login */}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="
+            w-full
+            rounded-full
+            bg-[#1ed760]
+            py-3.5
+            font-bold
+            text-black
+            transition
+            hover:scale-[1.02]
+            hover:bg-[#3be477]
+            disabled:cursor-not-allowed
+            disabled:opacity-60
+          "
+        >
+          {isSubmitting ? "Logging in..." : "Log in"}
         </button>
       </form>
 
-      <p>OR</p>
+      {/* Divider */}
+
+      <div className="my-7 flex items-center gap-4">
+        <div className="h-px flex-1 bg-neutral-700" />
+
+        <span className="text-sm font-semibold">or</span>
+
+        <div className="h-px flex-1 bg-neutral-700" />
+      </div>
+
+      {/* Google */}
 
       <GoogleLoginButton />
 
-      <p>
-        Don't have an account? <Link href="/register">Register</Link>
-      </p>
-    </div>
+      {/* Footer */}
+
+      <div className="mt-12 text-center">
+        <p className="text-sm text-neutral-400">Don't have an account?</p>
+
+        <Link
+          href="/register"
+          className="mt-2 inline-block font-bold text-white underline underline-offset-4 hover:text-[#1ed760]"
+        >
+          Sign up
+        </Link>
+      </div>
+    </AuthShell>
   );
 }
