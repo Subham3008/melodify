@@ -30,6 +30,11 @@ const envSchema = z.object({
   ACCESS_TOKEN_EXPIRES_IN: z.coerce.number().default(900),
 
   REFRESH_TOKEN_EXPIRES_IN: z.coerce.number().default(604800),
+
+  // Jamendo
+  JAMENDO_CLIENT_ID: z.string().min(1, "JAMENDO_CLIENT_ID is required"),
+
+  JAMENDO_BASE_URL: z.string().default("https://api.jamendo.com/v3.0"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
