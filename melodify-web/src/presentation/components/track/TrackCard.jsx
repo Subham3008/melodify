@@ -1,7 +1,23 @@
-export default function TrackCard({ track }) {
+"use client";
+
+import { usePlayerStore } from "@/presentation/stores/player.store";
+
+export default function TrackCard({ track, queue = [] }) {
+  const playTrack = usePlayerStore((state) => state.playTrack);
+
+  const currentTrack = usePlayerStore((state) => state.currentTrack);
+
+  const isPlaying = usePlayerStore((state) => state.isPlaying);
+
+  const isCurrentTrack = currentTrack?.id === track.id;
+
   const minutes = Math.floor(track.durationSeconds / 60);
 
   const seconds = String(track.durationSeconds % 60).padStart(2, "0");
+
+  const handlePlay = () => {
+    playTrack(track, queue);
+  };
 
   return (
     <article
@@ -30,9 +46,7 @@ export default function TrackCard({ track }) {
 
         <button
           type="button"
-          onClick={() => {
-            console.log("Selected track:", track);
-          }}
+          onClick={handlePlay}
           className="
             absolute
             right-3
@@ -46,25 +60,24 @@ export default function TrackCard({ track }) {
             bg-[#1ed760]
             text-lg
             text-black
-            opacity-0
             shadow-xl
             transition
             duration-200
-            group-hover:opacity-100
+            group-hover:scale-105
           "
           aria-label={`Play ${track.title}`}
         >
-          ▶
+          {isCurrentTrack && isPlaying ? "♪" : "▶"}
         </button>
       </div>
 
       <div className="mt-4">
         <h3
-          className="
+          className={`
             truncate
             font-bold
-            text-white
-          "
+            ${isCurrentTrack ? "text-[#1ed760]" : "text-white"}
+          `}
         >
           {track.title}
         </h3>

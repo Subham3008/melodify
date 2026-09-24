@@ -31,7 +31,13 @@ export default function TrackGrid({ tracks }) {
       "
     >
       {tracks.map((track) => (
-        <TrackCard key={track.id} track={track} />
+        <TrackCard
+          key={track.id}
+          track={track}
+          // Entire catalog becomes
+          // current playback queue
+          queue={tracks}
+        />
       ))}
     </div>
   );
