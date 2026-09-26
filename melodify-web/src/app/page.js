@@ -1,77 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useEffect,
-} from "react";
+import { useEffect } from "react";
 
-import {
-  useAuthStore,
-} from "@/presentation/stores/auth.store";
+import { useAuthStore } from "@/presentation/stores/auth.store";
 
-import {
-  useTrackStore,
-} from "@/presentation/stores/track.store";
+import { useTrackStore } from "@/presentation/stores/track.store";
 
 import TrackGrid from "@/presentation/components/track/TrackGrid";
+import TrackSearchBar from "@/presentation/components/search/TrackSearchBar";
 
 export default function HomePage() {
-  const user = useAuthStore(
-    (state) => state.user,
-  );
+  const user = useAuthStore((state) => state.user);
 
-  const authLoading =
-    useAuthStore(
-      (state) => state.loading,
-    );
+  const authLoading = useAuthStore((state) => state.loading);
 
-  const logout =
-    useAuthStore(
-      (state) => state.logout,
-    );
+  const logout = useAuthStore((state) => state.logout);
 
-  const tracks =
-    useTrackStore(
-      (state) => state.tracks,
-    );
+  const tracks = useTrackStore((state) => state.tracks);
 
-  const tracksLoading =
-    useTrackStore(
-      (state) => state.loading,
-    );
+  const tracksLoading = useTrackStore((state) => state.loading);
 
-  const error =
-    useTrackStore(
-      (state) => state.error,
-    );
+  const error = useTrackStore((state) => state.error);
 
-  const hasMore =
-    useTrackStore(
-      (state) => state.hasMore,
-    );
+  const hasMore = useTrackStore((state) => state.hasMore);
 
-  const fetchTracks =
-    useTrackStore(
-      (state) =>
-        state.fetchTracks,
-    );
+  const fetchTracks = useTrackStore((state) => state.fetchTracks);
+
+  const searchQuery = useTrackStore((state) => state.searchQuery);
 
   useEffect(() => {
-    if (
-      !authLoading &&
-      user &&
-      tracks.length === 0
-    ) {
+    if (!authLoading && user && tracks.length === 0) {
       fetchTracks({
         reset: true,
       });
     }
-  }, [
-    authLoading,
-    user,
-    tracks.length,
-    fetchTracks,
-  ]);
+  }, [authLoading, user, tracks.length, fetchTracks]);
 
   if (authLoading) {
     return (
@@ -263,29 +227,38 @@ export default function HomePage() {
           md:px-8
         "
       >
-        <div className="mb-8">
-          <p
-            className="
-              text-sm
-              text-neutral-400
-            "
-          >
-            Welcome back,
-            {" "}
-            {user.name}
-          </p>
+        <div
+          className="
+            mb-8
+            flex
+            flex-col
+            gap-5
+            md:flex-row
+            md:items-end
+            md:justify-between
+          "
+        >
+          <div>
+            <p className="text-sm text-neutral-400">
+              Welcome back, {user.name}
+            </p>
 
-          <h2
-            className="
-              mt-1
-              text-3xl
-              font-black
-              tracking-tight
-              md:text-4xl
-            "
-          >
-            Discover music
-          </h2>
+            <h2
+              className="
+                mt-1
+                text-3xl
+                font-black
+                tracking-tight
+                md:text-4xl
+              "
+            >
+              {searchQuery
+                ? `Search results for "${searchQuery}"`
+                : "Discover music"}
+            </h2>
+          </div>
+
+          <TrackSearchBar />
         </div>
 
         {error && (
@@ -303,35 +276,25 @@ export default function HomePage() {
           </div>
         )}
 
-        {tracksLoading &&
-          tracks.length === 0 ? (
-          <p className="text-neutral-400">
-            Loading tracks...
-          </p>
+        {tracksLoading && tracks.length === 0 ? (
+          <p className="text-neutral-400">Loading tracks...</p>
         ) : (
-          <TrackGrid
-            tracks={tracks}
-          />
+          <TrackGrid tracks={tracks} />
         )}
 
-        {tracks.length > 0 &&
-          hasMore && (
-            <div
-              className="
+        {tracks.length > 0 && hasMore && (
+          <div
+            className="
                 mt-10
                 flex
                 justify-center
               "
-            >
-              <button
-                type="button"
-                disabled={
-                  tracksLoading
-                }
-                onClick={() =>
-                  fetchTracks()
-                }
-                className="
+          >
+            <button
+              type="button"
+              disabled={tracksLoading}
+              onClick={() => fetchTracks()}
+              className="
                   rounded-full
                   border
                   border-neutral-500
@@ -343,13 +306,11 @@ export default function HomePage() {
                   disabled:cursor-not-allowed
                   disabled:opacity-50
                 "
-              >
-                {tracksLoading
-                  ? "Loading..."
-                  : "Load more"}
-              </button>
-            </div>
-          )}
+            >
+              {tracksLoading ? "Loading..." : "Load more"}
+            </button>
+          </div>
+        )}
       </section>
     </main>
   );

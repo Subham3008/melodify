@@ -1,81 +1,150 @@
 import { create } from "zustand";
 
-import {
-  getTrackCatalog,
-} from "@/application/track/track.usecases";
+import { getTrackCatalog } from "@/application/track/track.usecases";
 
 const TRACK_LIMIT = 20;
 
-export const useTrackStore = create(
-  (set, get) => ({
-    tracks: [],
+/*
+|--------------------------------------------------------------------------
+| Request sequence
+|--------------------------------------------------------------------------
+|
+| User quickly type kare:
+|
+| r
+| ro
+| roc
+| rock
+|
+| Older response newer search ko overwrite na kare.
+|
+*/
 
-    loading: false,
+let requestSequence = 0;
 
-    error: null,
+export const useTrackStore = create((set, get) => ({
+  tracks: [],
 
-    page: 1,
+  loading: false,
 
-    hasMore: true,
+  error: null,
 
-    fetchTracks: async ({
-      reset = false,
-      search = "",
-    } = {}) => {
-      const currentPage =
-        reset
-          ? 1
-          : get().page;
+  page: 1,
 
-      set({
-        loading: true,
-        error: null,
+  hasMore: true,
+
+  searchQuery: "",
+
+  fetchTracks: async ({ reset = false, search } = {}) => {
+    /*
+          |--------------------------------------------------------------------------
+          | Search query
+          |--------------------------------------------------------------------------
+          */
+
+    const nextSearch =
+      typeof search === "string" ? search.trim() : get().searchQuery;
+
+    /*
+          |--------------------------------------------------------------------------
+          | Page
+          |--------------------------------------------------------------------------
+          */
+
+    const currentPage = reset ? 1 : get().page;
+
+    /*
+          |--------------------------------------------------------------------------
+          | Avoid multiple Load More requests
+          |--------------------------------------------------------------------------
+          */
+
+    if (get().loading && !reset) {
+      return;
+    }
+
+    const requestId = ++requestSequence;
+
+    set({
+      loading: true,
+
+      error: null,
+
+      searchQuery: nextSearch,
+
+      ...(reset
+        ? {
+          tracks: [],
+
+          page: 1,
+
+          hasMore: true,
+        }
+        : {}),
+    });
+
+    try {
+      const tracks = await getTrackCatalog({
+        page: currentPage,
+
+        limit: TRACK_LIMIT,
+
+        search: nextSearch,
       });
 
-      try {
-        const tracks =
-          await getTrackCatalog({
-            page: currentPage,
-            limit: TRACK_LIMIT,
-            search,
-          });
+      /*
+            |--------------------------------------------------------------------------
+            | Ignore stale search responses
+            |--------------------------------------------------------------------------
+            */
 
-        set((state) => ({
-          tracks: reset
-            ? tracks
-            : [
-              ...state.tracks,
-              ...tracks,
-            ],
-
-          page:
-            currentPage + 1,
-
-          hasMore:
-            tracks.length ===
-            TRACK_LIMIT,
-
-          loading: false,
-        }));
-      } catch (error) {
-        set({
-          loading: false,
-
-          error:
-            error.response?.data
-              ?.message ||
-            "Failed to load tracks",
-        });
+      if (requestId !== requestSequence) {
+        return;
       }
-    },
 
-    resetTracks: () => {
+      set((state) => ({
+        tracks: reset ? tracks : [...state.tracks, ...tracks],
+
+        page: currentPage + 1,
+
+        hasMore: tracks.length === TRACK_LIMIT,
+
+        loading: false,
+      }));
+    } catch (error) {
+      if (requestId !== requestSequence) {
+        return;
+      }
+
       set({
-        tracks: [],
-        page: 1,
-        hasMore: true,
-        error: null,
+        loading: false,
+
+        error: error.response?.data?.message || "Failed to load tracks",
       });
-    },
-  }),
-);
+    }
+  },
+
+  clearSearch: () => {
+    set({
+      searchQuery: "",
+    });
+
+    get().fetchTracks({
+      reset: true,
+      search: "",
+    });
+  },
+
+  resetTracks: () => {
+    requestSequence++;
+
+    set({
+      tracks: [],
+      loading: false,
+      error: null,
+      page: 1,
+      hasMore: true,
+      searchQuery: "",
+    });
+  },
+}));
