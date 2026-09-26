@@ -116,10 +116,21 @@ export const getTracks = async ({
 
   const skip = (safePage - 1) * safeLimit;
 
+  const normalizedSearch = search?.trim() || "";
+
   const query: Record<string, unknown> = {};
 
-  if (search?.trim()) {
-    const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  /*
+  |--------------------------------------------------------------------------
+  | Search query
+  |--------------------------------------------------------------------------
+  */
+
+  if (normalizedSearch) {
+    const escapedSearch = normalizedSearch.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&",
+    );
 
     const regex = new RegExp(escapedSearch, "i");
 
@@ -127,14 +138,22 @@ export const getTracks = async ({
       {
         title: regex,
       },
+
       {
         artistName: regex,
       },
+
       {
         albumName: regex,
       },
     ];
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | First search MongoDB
+  |--------------------------------------------------------------------------
+  */
 
   const tracks = await Track.find(query)
     .sort({
@@ -143,7 +162,48 @@ export const getTracks = async ({
     .skip(skip)
     .limit(safeLimit);
 
-  return tracks.map(mapTrackToDTO);
+  /*
+  |--------------------------------------------------------------------------
+  | DB result found
+  |--------------------------------------------------------------------------
+  */
+
+  if (tracks.length > 0) {
+    return tracks.map(mapTrackToDTO);
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | No search term
+  |--------------------------------------------------------------------------
+  |
+  | Normal catalog request me DB empty hai to simply []
+  | return karenge.
+  |
+  | Jamendo fallback sirf actual search ke liye use ho raha hai.
+  |
+  */
+
+  if (!normalizedSearch) {
+    return [];
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Search not found in DB
+  |--------------------------------------------------------------------------
+  |
+  | Ab Jamendo ko search karenge.
+  |
+  */
+
+  return discoverTracks({
+    search: normalizedSearch,
+
+    limit: safeLimit,
+
+    offset: skip,
+  });
 };
 
 export const getTrackById = async (trackId: string): Promise<TrackDTO> => {
