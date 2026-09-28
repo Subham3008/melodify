@@ -167,6 +167,22 @@ export default function HomePage() {
               sm:block
             "
           >
+
+            <Link
+              href="/liked"
+              className="
+                  hidden
+                  text-sm
+                  font-semibold
+                  text-neutral-300
+                  transition
+                  hover:text-white
+                  sm:block
+                "
+            >
+              ♥ Liked Songs
+            </Link>
+
             <p
               className="
                 text-sm

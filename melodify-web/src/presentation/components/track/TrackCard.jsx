@@ -1,6 +1,7 @@
 "use client";
 
 import { usePlayerStore } from "@/presentation/stores/player.store";
+import LikeButton from "@/presentation/components/like/LikeButton";
 
 export default function TrackCard({ track, queue = [] }) {
   const playTrack = usePlayerStore((state) => state.playTrack);
@@ -43,6 +44,15 @@ export default function TrackCard({ track, queue = [] }) {
             shadow-lg
           "
         />
+        <div
+          className="
+            absolute
+            top-3
+            right-3
+          "
+        >
+          <LikeButton track={track} />
+        </div>
 
         <button
           type="button"
