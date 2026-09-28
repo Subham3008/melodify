@@ -219,3 +219,41 @@ export const getTrackById = async (trackId: string): Promise<TrackDTO> => {
 
   return mapTrackToDTO(track);
 };
+
+export const getTracksByIds = async (
+  trackIds: string[],
+): Promise<TrackDTO[]> => {
+  if (trackIds.length === 0) {
+    return [];
+  }
+
+  const validTrackIds = trackIds.filter((id) => mongoose.isValidObjectId(id));
+
+  if (validTrackIds.length === 0) {
+    return [];
+  }
+
+  const tracks = await Track.find({
+    _id: {
+      $in: validTrackIds,
+    },
+  });
+
+  /*
+    |--------------------------------------------------------------------------
+    | Preserve like order
+    |--------------------------------------------------------------------------
+    |
+    | MongoDB $in original array order guarantee nahi karta.
+    |
+    | Isliye map bana ke original trackIds order restore kar rahe hain.
+    |
+    */
+
+  const trackMap = new Map(tracks.map((track) => [String(track._id), track]));
+
+  return validTrackIds
+    .map((id) => trackMap.get(id))
+    .filter((track): track is NonNullable<typeof track> => Boolean(track))
+    .map(mapTrackToDTO);
+};
