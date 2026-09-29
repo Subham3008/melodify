@@ -2,8 +2,9 @@
 
 import { usePlayerStore } from "@/presentation/stores/player.store";
 import LikeButton from "@/presentation/components/like/LikeButton";
+import AddToPlaylistButton from "@/presentation/components/playlist/AddToPlaylistButton";
 
-export default function TrackCard({ track, queue = [] }) {
+export default function TrackCard({ track, queue = [], onRemove }) {
   const playTrack = usePlayerStore((state) => state.playTrack);
 
   const currentTrack = usePlayerStore((state) => state.currentTrack);
@@ -46,11 +47,15 @@ export default function TrackCard({ track, queue = [] }) {
         />
         <div
           className="
-            absolute
-            top-3
-            right-3
-          "
+              absolute
+              top-3
+              right-3
+              flex
+              gap-2
+            "
         >
+          <AddToPlaylistButton track={track} />
+
           <LikeButton track={track} />
         </div>
 
@@ -120,6 +125,25 @@ export default function TrackCard({ track, queue = [] }) {
             {minutes}:{seconds}
           </span>
         </div>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+
+              onRemove();
+            }}
+            className="
+                mt-3
+                text-xs
+                font-semibold
+                text-red-400
+                hover:text-red-300
+              "
+          >
+            Remove from playlist
+          </button>
+        )}
       </div>
     </article>
   );

@@ -1,6 +1,6 @@
 import TrackCard from "./TrackCard";
 
-export default function TrackGrid({ tracks }) {
+export default function TrackGrid({ tracks, onRemoveTrack }) {
   if (tracks.length === 0) {
     return (
       <div
@@ -34,9 +34,8 @@ export default function TrackGrid({ tracks }) {
         <TrackCard
           key={track.id}
           track={track}
-          // Entire catalog becomes
-          // current playback queue
           queue={tracks}
+          onRemove={onRemoveTrack ? () => onRemoveTrack(track.id) : undefined}
         />
       ))}
     </div>

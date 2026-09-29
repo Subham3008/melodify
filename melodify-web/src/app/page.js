@@ -160,6 +160,19 @@ export default function HomePage() {
             gap-4
           "
         >
+          <Link
+            href="/playlists"
+            className="
+                hidden
+                text-sm
+                font-semibold
+                text-neutral-300
+                hover:text-white
+                sm:block
+              "
+          >
+            Playlists
+          </Link>
           <div
             className="
               hidden
