@@ -119,15 +119,13 @@ export default function HomePage() {
   }
 
   return (
-    <main
+    <div
       className="
-        min-h-screen
-        bg-[#121212]
-         pb-32
-        text-white
+        min-h-full
+      text-white
       "
     >
-      <header
+      {/* <header
         className="
           sticky
           top-0
@@ -160,19 +158,7 @@ export default function HomePage() {
             gap-4
           "
         >
-          <Link
-            href="/playlists"
-            className="
-                hidden
-                text-sm
-                font-semibold
-                text-neutral-300
-                hover:text-white
-                sm:block
-              "
-          >
-            Playlists
-          </Link>
+
           <div
             className="
               hidden
@@ -180,21 +166,6 @@ export default function HomePage() {
               sm:block
             "
           >
-
-            <Link
-              href="/liked"
-              className="
-                  hidden
-                  text-sm
-                  font-semibold
-                  text-neutral-300
-                  transition
-                  hover:text-white
-                  sm:block
-                "
-            >
-              ♥ Liked Songs
-            </Link>
 
             <p
               className="
@@ -245,7 +216,7 @@ export default function HomePage() {
             Logout
           </button>
         </div>
-      </header>
+      </header> */}
 
       <section
         className="
@@ -268,9 +239,6 @@ export default function HomePage() {
           "
         >
           <div>
-            <p className="text-sm text-neutral-400">
-              Welcome back, {user.name}
-            </p>
 
             <h2
               className="
@@ -341,6 +309,6 @@ export default function HomePage() {
           </div>
         )}
       </section>
-    </main>
+    </div>
   );
 }

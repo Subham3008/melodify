@@ -67,7 +67,7 @@ export default function PlaylistDetailsPage() {
         text-white
       "
     >
-      <header
+      {/* <header
         className="
           border-b
           border-neutral-800
@@ -103,7 +103,7 @@ export default function PlaylistDetailsPage() {
             Home
           </Link>
         </div>
-      </header>
+      </header> */}
 
       <section
         className="

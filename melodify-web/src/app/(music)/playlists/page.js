@@ -106,15 +106,12 @@ export default function PlaylistsPage() {
   }
 
   return (
-    <main
+    <div
       className="
-        min-h-screen
-        bg-[#121212]
-        pb-32
-        text-white
+        min-h-full
       "
     >
-      <header
+      {/* <header
         className="
           border-b
           border-neutral-800
@@ -150,7 +147,7 @@ export default function PlaylistsPage() {
             ← Home
           </Link>
         </div>
-      </header>
+      </header> */}
 
       <section
         className="
@@ -191,10 +188,8 @@ export default function PlaylistsPage() {
             <div
               className="
                 grid
-                grid-cols-2
-                gap-4
-                md:grid-cols-3
-                xl:grid-cols-4
+                grid-cols-[repeat(auto-fill,minmax(190px,220px))]
+                gap-5
               "
             >
               {playlists.map(
@@ -215,6 +210,6 @@ export default function PlaylistsPage() {
           )}
         </div>
       </section>
-    </main>
+    </div>
   );
 }

@@ -25,23 +25,29 @@ export default function PlaylistCard({ playlist }) {
     <Link
       href={`/playlists/${playlist.id}`}
       className="
-        block
-        rounded-xl
-        bg-[#181818]
-        p-5
-        transition
-        hover:bg-[#282828]
+      group
+      block
+      w-full
+      rounded-xl
+      bg-[#181818]
+      p-4
+      transition
+      hover:bg-[#282828]
       "
     >
       <div
         className="
           flex
           aspect-square
+          w-full
           items-center
           justify-center
           rounded-lg
-          bg-neutral-800
+          bg-linear-to-br
+          from-[#333333]
+          to-[#181818]
           text-6xl
+          shadow-lg
         "
       >
         🎵

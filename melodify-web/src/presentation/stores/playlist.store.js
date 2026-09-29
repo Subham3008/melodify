@@ -29,6 +29,23 @@ export const usePlaylistStore =
 
       error: null,
 
+      openPlaylistTrackId: null,
+
+       togglePlaylistMenu: (trackId) => {
+        set((state) => ({
+          openPlaylistTrackId:
+            state.openPlaylistTrackId === trackId
+              ? null
+              : trackId,
+        }));
+      },
+
+      closePlaylistMenu: () => {
+        set({
+          openPlaylistTrackId: null,
+        });
+      },
+
       fetchPlaylists:
         async () => {
           if (
@@ -349,6 +366,8 @@ export const usePlaylistStore =
               false,
 
             error: null,
+
+            openPlaylistTrackId: null,
           });
         },
     }),

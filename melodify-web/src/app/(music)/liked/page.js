@@ -95,15 +95,13 @@ export default function LikedSongsPage() {
   }
 
   return (
-    <main
+    <div
       className="
-        min-h-screen
-        bg-[#121212]
-        pb-32
-        text-white
+        min-h-full
+      text-white
       "
     >
-      <header
+      {/* <header
         className="
           border-b
           border-neutral-800
@@ -143,7 +141,7 @@ export default function LikedSongsPage() {
             ← Home
           </Link>
         </div>
-      </header>
+      </header> */}
 
       <section
         className="
@@ -208,6 +206,6 @@ export default function LikedSongsPage() {
           />
         )}
       </section>
-    </main>
+    </div>
   );
 }
