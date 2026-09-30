@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
 import { usePlayerStore } from "@/presentation/stores/player.store";
+import { useAuthStore } from "@/presentation/stores/auth.store";
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds)) {
@@ -35,6 +35,10 @@ export default function GlobalPlayer() {
 
   const setIsPlaying = usePlayerStore((state) => state.setIsPlaying);
 
+  const user = useAuthStore((state) => state.user);
+
+  const authLoading = useAuthStore((state) => state.loading);
+
   const [currentTime, setCurrentTime] = useState(0);
 
   const [duration, setDuration] = useState(0);
@@ -52,9 +56,40 @@ export default function GlobalPlayer() {
   useEffect(() => {
     const audio = audioRef.current;
 
-    if (!audio || !currentTrack) {
+    if (!audio) {
       return;
     }
+
+    /*
+  |--------------------------------------------------------------------------
+  | Player cleared
+  |--------------------------------------------------------------------------
+  |
+  | Logout / clearPlayer() hone par currentTrack null ho jayega.
+  | Actual browser audio ko bhi stop + unload karna zaroori hai.
+  |
+  */
+
+    if (!currentTrack) {
+      audio.pause();
+
+      audio.removeAttribute("src");
+
+      audio.load();
+
+      setCurrentTime(0);
+      setDuration(0);
+      setBuffering(false);
+      setPlayerError(null);
+
+      return;
+    }
+
+    /*
+  |--------------------------------------------------------------------------
+  | Load new track
+  |--------------------------------------------------------------------------
+  */
 
     setCurrentTime(0);
     setDuration(0);
@@ -172,7 +207,7 @@ export default function GlobalPlayer() {
     setVolume(newVolume);
   };
 
-  if (!currentTrack) {
+  if (authLoading || !user || !currentTrack) {
     return null;
   }
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/presentation/stores/auth.store";
 import LibrarySidebar from "./LibrarySidebar";
 import NowPlayingSidebar from "./NowPlayingSidebar";
 import MusicTopBar from "./MusicTopBar";
@@ -15,6 +16,10 @@ const MIN_NOW_PLAYING_WIDTH = 280;
 const MAX_NOW_PLAYING_WIDTH = 480;
 
 export default function MusicShell({ children }) {
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const authLoading = useAuthStore((state) => state.loading);
+
   const [libraryWidth, setLibraryWidth] = useState(DEFAULT_LIBRARY_WIDTH);
   const [resizing, setResizing] = useState(false);
 
@@ -198,6 +203,33 @@ export default function MusicShell({ children }) {
       document.body.style.userSelect = "";
     };
   }, [resizingNowPlaying]);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login");
+    }
+  }, [authLoading, user, router]);
+
+  if (authLoading) {
+    return (
+      <div
+        className="
+        flex
+        min-h-screen
+        items-center
+        justify-center
+        bg-black
+        text-white
+      "
+      >
+        Loading...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div
