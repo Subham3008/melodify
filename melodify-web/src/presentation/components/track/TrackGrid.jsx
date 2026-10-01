@@ -30,9 +30,9 @@ export default function TrackGrid({ tracks, onRemoveTrack }) {
         xl:grid-cols-5
       "
     >
-      {tracks.map((track) => (
+      {tracks.map((track, index) => (
         <TrackCard
-          key={track.id}
+          key={`${track.id}-${index}`}
           track={track}
           queue={tracks}
           onRemove={onRemoveTrack ? () => onRemoveTrack(track.id) : undefined}

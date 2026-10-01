@@ -40,15 +40,13 @@ export default function CreatePlaylistForm() {
     <form
       onSubmit={handleSubmit}
       className="
-        rounded-xl
-        border
-        border-neutral-800
-        bg-[#181818]
-        p-5
-      "
+          h-fit
+          self-start
+          rounded-xl
+          bg-[#181818]
+          p-6
+      `"
     >
-      <h2 className="text-xl font-bold">Create playlist</h2>
-
       <input
         value={name}
         onChange={(event) => setName(event.target.value)}

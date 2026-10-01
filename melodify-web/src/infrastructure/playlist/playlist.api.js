@@ -37,6 +37,23 @@ export const getPlaylistRequest =
     return response.data;
   };
 
+export const renamePlaylistRequest =
+  async (
+    playlistId,
+    name,
+  ) => {
+    const response =
+      await apiClient.patch(
+        `/playlists/${playlistId}`,
+
+        {
+          name,
+        },
+      );
+
+    return response.data;
+  };
+
 export const deletePlaylistRequest =
   async (
     playlistId,

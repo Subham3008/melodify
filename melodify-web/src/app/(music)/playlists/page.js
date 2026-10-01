@@ -1,59 +1,38 @@
 "use client";
 
-import {
-  useEffect,
-} from "react";
-
+import { useEffect } from "react";
 import Link from "next/link";
 
-import {
-  useAuthStore,
-} from "@/presentation/stores/auth.store";
-
-import {
-  usePlaylistStore,
-} from "@/presentation/stores/playlist.store";
+import { useAuthStore } from "@/presentation/stores/auth.store";
+import { usePlaylistStore } from "@/presentation/stores/playlist.store";
 
 import CreatePlaylistForm from "@/presentation/components/playlist/CreatePlaylistForm";
-
 import PlaylistCard from "@/presentation/components/playlist/PlaylistCard";
 
 export default function PlaylistsPage() {
-  const user =
-    useAuthStore(
-      (state) =>
-        state.user,
-    );
+  const user = useAuthStore(
+    (state) => state.user,
+  );
 
-  const authLoading =
-    useAuthStore(
-      (state) =>
-        state.loading,
-    );
+  const authLoading = useAuthStore(
+    (state) => state.loading,
+  );
 
-  const playlists =
-    usePlaylistStore(
-      (state) =>
-        state.playlists,
-    );
+  const playlists = usePlaylistStore(
+    (state) => state.playlists,
+  );
 
-  const initialized =
-    usePlaylistStore(
-      (state) =>
-        state.initialized,
-    );
+  const initialized = usePlaylistStore(
+    (state) => state.initialized,
+  );
 
-  const loading =
-    usePlaylistStore(
-      (state) =>
-        state.loading,
-    );
+  const loading = usePlaylistStore(
+    (state) => state.loading,
+  );
 
-  const fetchPlaylists =
-    usePlaylistStore(
-      (state) =>
-        state.fetchPlaylists,
-    );
+  const fetchPlaylists = usePlaylistStore(
+    (state) => state.fetchPlaylists,
+  );
 
   useEffect(() => {
     if (
@@ -106,81 +85,89 @@ export default function PlaylistsPage() {
   }
 
   return (
-    <div
-      className="
-        min-h-full
-      "
-    >
-      {/* <header
-        className="
-          border-b
-          border-neutral-800
-          px-8
-          py-5
-        "
-      >
-        <div
-          className="
-            mx-auto
-            flex
-            max-w-7xl
-            items-center
-            justify-between
-          "
-        >
-          <h1
-            className="
-              text-2xl
-              font-black
-            "
-          >
-            Playlists
-          </h1>
-
-          <Link
-            href="/"
-            className="
-              text-neutral-300
-              hover:text-white
-            "
-          >
-            ← Home
-          </Link>
-        </div>
-      </header> */}
-
+    <div className="min-h-full">
       <section
         className="
           mx-auto
           grid
           max-w-7xl
+          items-start
           gap-8
           px-8
-          py-8
-          lg:grid-cols-[320px_1fr]
+          pb-12
+          lg:grid-cols-[320px_minmax(0,1fr)]
         "
       >
-        <CreatePlaylistForm />
+        {/* ================================================================
+            LEFT SIDE
+            Create form stays sticky while playlists scroll
+        ================================================================= */}
 
-        <div>
+        <div
+          className="
+            sticky
+            top-20
+            self-start
+            pt-8
+          "
+        >
           <h2
             className="
               mb-6
               text-3xl
               font-black
+              text-white
             "
           >
-            Your Playlists
+            Create Playlist
           </h2>
 
+          <CreatePlaylistForm />
+        </div>
+
+        {/* ================================================================
+            RIGHT SIDE
+        ================================================================= */}
+
+        <div className="min-w-0">
+          {/* ==============================================================
+              STICKY PLAYLIST HEADER
+          =============================================================== */}
+
+          <div
+            className="
+              sticky
+              top-20
+              z-20
+              -mx-3
+              bg-[#121212]/80
+              px-3
+              pt-8
+              pb-5
+              backdrop-blur-xl
+            "
+          >
+            <h2
+              className="
+                text-3xl
+                font-black
+                text-white
+              "
+            >
+              Your Playlists
+            </h2>
+          </div>
+
+          {/* ==============================================================
+              PLAYLIST CONTENT
+          =============================================================== */}
+
           {loading &&
-            playlists.length ===
-            0 ? (
+            playlists.length === 0 ? (
             <p className="text-neutral-400">
               Loading playlists...
             </p>
-          ) : playlists.length ===
-            0 ? (
+          ) : playlists.length === 0 ? (
             <p className="text-neutral-400">
               Create your first playlist.
             </p>
@@ -193,9 +180,7 @@ export default function PlaylistsPage() {
               "
             >
               {playlists.map(
-                (
-                  playlist,
-                ) => (
+                (playlist) => (
                   <PlaylistCard
                     key={
                       playlist.id

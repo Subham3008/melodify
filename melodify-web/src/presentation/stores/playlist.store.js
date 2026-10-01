@@ -9,6 +9,7 @@ import {
   getUserPlaylist,
   getUserPlaylists,
   removeUserTrackFromPlaylist,
+  renameUserPlaylist,
 } from "@/application/playlist/playlist.usecases";
 
 export const usePlaylistStore =
@@ -31,7 +32,7 @@ export const usePlaylistStore =
 
       openPlaylistTrackId: null,
 
-       togglePlaylistMenu: (trackId) => {
+      togglePlaylistMenu: (trackId) => {
         set((state) => ({
           openPlaylistTrackId:
             state.openPlaylistTrackId === trackId
@@ -308,6 +309,61 @@ export const usePlaylistStore =
                   ?.message ||
                 "Unable to remove track",
             });
+          }
+        },
+
+      renamePlaylist:
+        async (
+          playlistId,
+          name,
+        ) => {
+          try {
+            const updatedPlaylist =
+              await renameUserPlaylist(
+                playlistId,
+                name,
+              );
+
+            set((state) => ({
+              playlists:
+                state.playlists.map(
+                  (playlist) =>
+                    playlist.id ===
+                      playlistId
+                      ? {
+                        ...playlist,
+                        ...updatedPlaylist,
+                      }
+                      : playlist,
+                ),
+
+              currentPlaylist:
+                state
+                  .currentPlaylist
+                  ?.id ===
+                  playlistId
+                  ? {
+                    ...state.currentPlaylist,
+
+                    name:
+                      updatedPlaylist.name,
+                  }
+                  : state.currentPlaylist,
+
+              error: null,
+            }));
+
+            return updatedPlaylist;
+          } catch (error) {
+            set({
+              error:
+                error.response
+                  ?.data
+                  ?.message ||
+                "Unable to rename playlist",
+            });
+
+            throw error;
           }
         },
 

@@ -6,6 +6,7 @@ import {
 import {
   addTrackToPlaylistRequest,
   createPlaylistRequest,
+  renamePlaylistRequest,
   deletePlaylistRequest,
   getPlaylistRequest,
   getPlaylistsRequest,
@@ -48,6 +49,22 @@ export const getUserPlaylist =
       );
 
     return createPlaylistDetails(
+      response.data,
+    );
+  };
+
+export const renameUserPlaylist =
+  async (
+    playlistId,
+    name,
+  ) => {
+    const response =
+      await renamePlaylistRequest(
+        playlistId,
+        name,
+      );
+
+    return createPlaylistSummary(
       response.data,
     );
   };
