@@ -6,11 +6,15 @@ import { validateBody } from "../../middleware/validate.middleware.js";
 
 import { asyncHandler } from "../../utils/asyncHandler.js";
 
-import { createPlaylistSchema } from "./playlist.validation.js";
+import {
+  createPlaylistSchema,
+  renamePlaylistSchema,
+} from "./playlist.validation.js";
 
 import {
   addTrackController,
   createPlaylistController,
+  renamePlaylistController,
   deletePlaylistController,
   getPlaylistController,
   getPlaylistsController,
@@ -45,6 +49,14 @@ router.get(
   "/:playlistId",
 
   asyncHandler(getPlaylistController),
+);
+
+router.patch(
+  "/:playlistId",
+
+  validateBody(renamePlaylistSchema),
+
+  asyncHandler(renamePlaylistController),
 );
 
 router.delete(

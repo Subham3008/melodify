@@ -226,6 +226,51 @@ export const removeTrackFromPlaylist = async (
   };
 };
 
+export const renamePlaylist = async (
+  userId: string,
+  playlistId: string,
+  name: string,
+) => {
+  if (!mongoose.isValidObjectId(playlistId)) {
+    throw new ApiError(400, "Invalid playlist id");
+  }
+
+  const playlist = await Playlist.findOneAndUpdate(
+    {
+      _id: playlistId,
+      userId,
+    },
+
+    {
+      $set: {
+        name: name.trim(),
+      },
+    },
+
+    {
+      new: true,
+    },
+  );
+
+  if (!playlist) {
+    throw new ApiError(404, "Playlist not found");
+  }
+
+  return {
+    id: String(playlist._id),
+
+    name: playlist.name,
+
+    description: playlist.description,
+
+    trackCount: playlist.tracks.length,
+
+    createdAt: playlist.createdAt,
+
+    updatedAt: playlist.updatedAt,
+  };
+};
+
 export const deletePlaylist = async (userId: string, playlistId: string) => {
   if (!mongoose.isValidObjectId(playlistId)) {
     throw new ApiError(400, "Invalid playlist id");

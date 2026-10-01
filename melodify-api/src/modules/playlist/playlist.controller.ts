@@ -5,6 +5,7 @@ import { ApiError } from "../../utils/ApiError.js";
 import {
   addTrackToPlaylist,
   createPlaylist,
+  renamePlaylist,
   deletePlaylist,
   getPlaylistById,
   getUserPlaylists,
@@ -148,6 +149,40 @@ export const removeTrackController = async (
     message: "Track removed from playlist",
 
     data: result,
+  });
+};
+
+export const renamePlaylistController = async (
+  req: Request<
+    {
+      playlistId: string;
+    },
+    {},
+    {
+      name: string;
+    }
+  >,
+
+  res: Response,
+): Promise<void> => {
+  const userId = req.user?.userId;
+
+  if (!userId) {
+    throw new ApiError(401, "Unauthorized");
+  }
+
+  const playlist = await renamePlaylist(
+    userId,
+    req.params.playlistId,
+    req.body.name,
+  );
+
+  res.status(200).json({
+    success: true,
+
+    message: "Playlist renamed",
+
+    data: playlist,
   });
 };
 

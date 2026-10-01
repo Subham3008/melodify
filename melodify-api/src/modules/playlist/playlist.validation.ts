@@ -14,3 +14,11 @@ export const createPlaylistSchema = z.object({
     .optional()
     .default(""),
 });
+
+export const renamePlaylistSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Playlist name is required")
+    .max(80, "Playlist name is too long"),
+});
