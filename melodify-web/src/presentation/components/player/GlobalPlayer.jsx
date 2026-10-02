@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePlayerStore } from "@/presentation/stores/player.store";
 import { useAuthStore } from "@/presentation/stores/auth.store";
+import { sendPlaybackEvent } from "@/application/history/history.usecases";
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds)) {
@@ -18,6 +19,9 @@ const formatTime = (seconds) => {
 
 export default function GlobalPlayer() {
   const audioRef = useRef(null);
+  const playedTrackIdRef = useRef(null);
+  const previousTrackRef = useRef(null);
+  const completedTrackIdRef = useRef(null);
 
   const currentTrack = usePlayerStore((state) => state.currentTrack);
 
@@ -47,6 +51,34 @@ export default function GlobalPlayer() {
 
   const [playerError, setPlayerError] = useState(null);
 
+  const sendPlaybackEventSafely = async (
+    eventType,
+    positionSeconds = 0,
+    track = currentTrack,
+  ) => {
+    if (!track?.id) {
+      return;
+    }
+
+    try {
+      await sendPlaybackEvent({
+        trackId: track.id,
+
+        eventType,
+
+        positionSeconds: Math.max(0, Math.floor(positionSeconds)),
+      });
+    } catch (error) {
+      /*
+      |--------------------------------------------------------------------------
+      | Playback must continue even if analytics/history fails
+      |--------------------------------------------------------------------------
+      */
+
+      console.error(`Failed to record ${eventType} playback event:`, error);
+    }
+  };
+
   /*
   |--------------------------------------------------------------------------
   | Load new track
@@ -60,14 +92,72 @@ export default function GlobalPlayer() {
       return;
     }
 
+    const previousTrack = previousTrackRef.current;
+
+    /*
+  |--------------------------------------------------------------------------
+  | Detect leaving previous track
+  |--------------------------------------------------------------------------
+  |
+  | Covers:
+  |
+  | Song A → click Song D directly
+  | Song A → Next
+  | Song A → Previous
+  |
+  */
+
+    const changedToDifferentTrack =
+      previousTrack && currentTrack && previousTrack.id !== currentTrack.id;
+
+    if (changedToDifferentTrack) {
+      /*
+    |--------------------------------------------------------------------------
+    | Natural completion already recorded
+    |--------------------------------------------------------------------------
+    |
+    | Don't create:
+    |
+    | COMPLETED
+    | SKIPPED   ❌
+    |
+    */
+
+      const wasCompleted = completedTrackIdRef.current === previousTrack.id;
+
+      if (!wasCompleted) {
+        void sendPlaybackEventSafely(
+          "SKIPPED",
+
+          audio.currentTime,
+
+          previousTrack,
+        );
+      }
+
+      completedTrackIdRef.current = null;
+    }
+
+    /*
+  |--------------------------------------------------------------------------
+  | Remember current track
+  |--------------------------------------------------------------------------
+  */
+
+    previousTrackRef.current = currentTrack ?? null;
+
+    /*
+  |--------------------------------------------------------------------------
+  | New playback session
+  |--------------------------------------------------------------------------
+  */
+
+    playedTrackIdRef.current = null;
+
     /*
   |--------------------------------------------------------------------------
   | Player cleared
   |--------------------------------------------------------------------------
-  |
-  | Logout / clearPlayer() hone par currentTrack null ho jayega.
-  | Actual browser audio ko bhi stop + unload karna zaroori hai.
-  |
   */
 
     if (!currentTrack) {
@@ -81,6 +171,10 @@ export default function GlobalPlayer() {
       setDuration(0);
       setBuffering(false);
       setPlayerError(null);
+
+      previousTrackRef.current = null;
+
+      completedTrackIdRef.current = null;
 
       return;
     }
@@ -150,6 +244,10 @@ export default function GlobalPlayer() {
     audioRef.current.volume = volume;
   }, [volume]);
 
+  const handleNext = () => {
+    playNext();
+  };
+
   /*
   |--------------------------------------------------------------------------
   | Previous
@@ -163,9 +261,13 @@ export default function GlobalPlayer() {
       return;
     }
 
-    // Spotify-style behavior:
-    // if more than 3 sec played,
-    // restart current song.
+    /*
+  |--------------------------------------------------------------------------
+  | Spotify-style:
+  | More than 3 sec → restart current song
+  |--------------------------------------------------------------------------
+  */
+
     if (audio.currentTime > 3) {
       audio.currentTime = 0;
 
@@ -173,6 +275,16 @@ export default function GlobalPlayer() {
 
       return;
     }
+
+    /*
+  |--------------------------------------------------------------------------
+  | Change to previous track
+  |--------------------------------------------------------------------------
+  |
+  | SKIPPED will automatically be recorded
+  | by the track-change effect.
+  |
+  */
 
     playPrevious();
   };
@@ -225,14 +337,47 @@ export default function GlobalPlayer() {
         onWaiting={() => {
           setBuffering(true);
         }}
-        onPlaying={() => {
+        onPlaying={(event) => {
           setBuffering(false);
           setPlayerError(null);
+
+          /*
+          |--------------------------------------------------------------------------
+          | Record PLAYED only once for current playback session
+          |--------------------------------------------------------------------------
+          */
+
+          if (currentTrack && playedTrackIdRef.current !== currentTrack.id) {
+            playedTrackIdRef.current = currentTrack.id;
+
+            void sendPlaybackEventSafely(
+              "PLAYED",
+              event.currentTarget.currentTime,
+            );
+          }
         }}
         onCanPlay={() => {
           setBuffering(false);
         }}
-        onEnded={() => {
+        onEnded={(event) => {
+          const audio = event.currentTarget;
+
+          /*
+          |--------------------------------------------------------------------------
+          | Mark track as naturally completed
+          |--------------------------------------------------------------------------
+          */
+
+          completedTrackIdRef.current = currentTrack?.id ?? null;
+
+          void sendPlaybackEventSafely(
+            "COMPLETED",
+
+            audio.duration || audio.currentTime,
+          );
+
+          playedTrackIdRef.current = null;
+
           playNext();
         }}
         onError={() => {
@@ -401,7 +546,7 @@ export default function GlobalPlayer() {
 
               <button
                 type="button"
-                onClick={playNext}
+                onClick={handleNext}
                 className="
                   text-xl
                   text-neutral-300
