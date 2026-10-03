@@ -2,122 +2,224 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { useTrackStore } from "@/presentation/stores/track.store";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 export default function TrackSearchBar() {
-  const searchQuery = useTrackStore((state) => state.searchQuery);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const fetchTracks = useTrackStore((state) => state.fetchTracks);
+  const urlSearch = searchParams.get("search") ?? "";
 
-  const [value, setValue] = useState(searchQuery);
+  const [value, setValue] = useState(urlSearch);
 
-  const isFirstRender = useRef(true);
+  /*
+  |--------------------------------------------------------------------------
+  | Prevent initial empty input from redirecting
+  |--------------------------------------------------------------------------
+  */
+
+  const userTypedRef = useRef(false);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Sync input with URL
+  |--------------------------------------------------------------------------
+  */
+
+  useEffect(() => {
+    setValue(urlSearch);
+  }, [urlSearch]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Navigate to search results
+  |--------------------------------------------------------------------------
+  */
+
+  const navigateToSearch = (searchValue) => {
+    const query = searchValue.trim();
+
+    const target = query ? `/?search=${encodeURIComponent(query)}` : "/";
+
+    /*
+    |--------------------------------------------------------------------------
+    | Already on same search
+    |--------------------------------------------------------------------------
+    */
+
+    if (pathname === "/" && query === urlSearch.trim()) {
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Same page → replace
+    | Other page → push to Home
+    |--------------------------------------------------------------------------
+    */
+
+    if (pathname === "/") {
+      router.replace(target, {
+        scroll: false,
+      });
+
+      return;
+    }
+
+    router.push(target);
+  };
 
   /*
   |--------------------------------------------------------------------------
   | Debounced search
   |--------------------------------------------------------------------------
-  |
-  | User:
-  |
-  | r
-  | ro
-  | roc
-  | rock
-  |
-  | Har key press pe API call nahi.
-  |
-  | User typing stop karega 450ms
-  | then API request jayegi.
-  |
   */
 
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-
+    if (!userTypedRef.current) {
       return;
     }
 
     const timer = setTimeout(() => {
-      fetchTracks({
-        reset: true,
+      navigateToSearch(value);
 
-        search: value,
-      });
+      userTypedRef.current = false;
     }, 450);
 
     return () => {
       clearTimeout(timer);
     };
-  }, [value, fetchTracks]);
+  }, [value]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Input
+  |--------------------------------------------------------------------------
+  */
+
+  const handleChange = (event) => {
+    userTypedRef.current = true;
+
+    setValue(event.target.value);
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Enter search
+  |--------------------------------------------------------------------------
+  */
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+
+    userTypedRef.current = false;
+
+    navigateToSearch(value, true);
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Clear
+  |--------------------------------------------------------------------------
+  */
 
   const handleClear = () => {
+    userTypedRef.current = false;
+
     setValue("");
+
+    /*
+    |--------------------------------------------------------------------------
+    | Clear search → Home catalog
+    |--------------------------------------------------------------------------
+    */
+
+    if (pathname === "/") {
+      router.replace("/", {
+        scroll: false,
+      });
+    } else {
+      router.push("/");
+    }
   };
 
   return (
-    <div
+    <form
+      onSubmit={handleSubmit}
       className="
         relative
         w-full
-        max-w-md
+        max-w-xl
       "
     >
+      {/* SEARCH ICON */}
+
       <span
         className="
+          pointer-events-none
           absolute
           top-1/2
           left-4
           -translate-y-1/2
+          text-sm
           text-neutral-400
         "
       >
         🔍
       </span>
 
+      {/* INPUT */}
+
       <input
-        type="text"
+        type="search"
         value={value}
-        onChange={(event) => setValue(event.target.value)}
+        onChange={handleChange}
         placeholder="Search songs, artists or albums"
         className="
+          h-11
           w-full
           rounded-full
           border
           border-neutral-700
           bg-[#242424]
-          py-3
-          pr-12
+          pr-11
           pl-11
           text-sm
           text-white
           outline-none
           transition
+
           placeholder:text-neutral-500
-          focus:border-neutral-400
+
+          hover:border-neutral-500
+
+          focus:border-white
           focus:bg-[#2a2a2a]
         "
       />
+
+      {/* CLEAR */}
 
       {value && (
         <button
           type="button"
           onClick={handleClear}
+          aria-label="Clear search"
           className="
             absolute
             top-1/2
             right-4
             -translate-y-1/2
+            text-lg
             text-neutral-400
             transition
             hover:text-white
           "
-          aria-label="Clear search"
         >
-          ✕
+          ×
         </button>
       )}
-    </div>
+    </form>
   );
 }

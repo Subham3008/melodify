@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
-
 import { useAuthStore } from "@/presentation/stores/auth.store";
-
 import { useTrackStore } from "@/presentation/stores/track.store";
-
 import TrackGrid from "@/presentation/components/track/TrackGrid";
-import TrackSearchBar from "@/presentation/components/search/TrackSearchBar";
+import RecentlyPlayed from "@/presentation/components/history/RecentlyPlayed";
+import { useSearchParams } from "next/navigation";
 
 export default function HomePage() {
+  const searchParams = useSearchParams();
+
+  const urlSearchQuery = searchParams.get("search")?.trim() ?? "";
+
   const user = useAuthStore((state) => state.user);
 
   const authLoading = useAuthStore((state) => state.loading);
@@ -27,15 +29,16 @@ export default function HomePage() {
 
   const fetchTracks = useTrackStore((state) => state.fetchTracks);
 
-  const searchQuery = useTrackStore((state) => state.searchQuery);
-
   useEffect(() => {
-    if (!authLoading && user && tracks.length === 0) {
-      fetchTracks({
-        reset: true,
-      });
+    if (authLoading || !user) {
+      return;
     }
-  }, [authLoading, user, tracks.length, fetchTracks]);
+
+    fetchTracks({
+      reset: true,
+      search: urlSearchQuery,
+    });
+  }, [authLoading, user, urlSearchQuery, fetchTracks]);
 
   if (authLoading) {
     return (
@@ -125,99 +128,6 @@ export default function HomePage() {
       text-white
       "
     >
-      {/* <header
-        className="
-          sticky
-          top-0
-          z-10
-          flex
-          items-center
-          justify-between
-          border-b
-          border-neutral-800
-          bg-[#121212]/95
-          px-6
-          py-4
-          backdrop-blur
-          md:px-8
-        "
-      >
-        <h1
-          className="
-            text-2xl
-            font-black
-          "
-        >
-          Melodify
-        </h1>
-
-        <div
-          className="
-            flex
-            items-center
-            gap-4
-          "
-        >
-
-          <div
-            className="
-              hidden
-              text-right
-              sm:block
-            "
-          >
-
-            <p
-              className="
-                text-sm
-                font-semibold
-              "
-            >
-              {user.name}
-            </p>
-
-            <p
-              className="
-                text-xs
-                text-neutral-400
-              "
-            >
-              {user.email}
-            </p>
-          </div>
-
-          {user.avatarUrl && (
-            <img
-              src={user.avatarUrl}
-              alt={user.name}
-              className="
-                h-10
-                w-10
-                rounded-full
-                object-cover
-              "
-            />
-          )}
-
-          <button
-            onClick={logout}
-            className="
-              rounded-full
-              border
-              border-neutral-600
-              px-4
-              py-2
-              text-sm
-              font-bold
-              transition
-              hover:border-white
-            "
-          >
-            Logout
-          </button>
-        </div>
-      </header> */}
-
       <section
         className="
           mx-auto
@@ -227,6 +137,9 @@ export default function HomePage() {
           md:px-8
         "
       >
+        {!urlSearchQuery && (
+          <RecentlyPlayed />
+        )}
         <div
           className="
             mb-8
@@ -239,7 +152,6 @@ export default function HomePage() {
           "
         >
           <div>
-
             <h2
               className="
                 mt-1
@@ -249,13 +161,11 @@ export default function HomePage() {
                 md:text-4xl
               "
             >
-              {searchQuery
-                ? `Search results for "${searchQuery}"`
+              {urlSearchQuery
+                ? `Search results for "${urlSearchQuery}"`
                 : "Discover music"}
             </h2>
           </div>
-
-          <TrackSearchBar />
         </div>
 
         {error && (

@@ -6,6 +6,7 @@ import { useAuthStore } from "@/presentation/stores/auth.store";
 import { usePlayerStore } from "@/presentation/stores/player.store";
 import { useLikeStore } from "@/presentation/stores/like.store";
 import { usePlaylistStore } from "@/presentation/stores/playlist.store";
+import { useHistoryStore } from "@/presentation/stores/history.store";
 
 export default function SessionCleanup() {
   const user = useAuthStore((state) => state.user);
@@ -17,6 +18,8 @@ export default function SessionCleanup() {
   const resetLikes = useLikeStore((state) => state.resetLikes);
 
   const resetPlaylists = usePlaylistStore((state) => state.resetPlaylists);
+
+  const resetHistory = useHistoryStore((state) => state.resetHistory);
 
   useEffect(() => {
     if (authLoading) {
@@ -38,8 +41,17 @@ export default function SessionCleanup() {
       resetLikes();
 
       resetPlaylists();
+
+      resetHistory();
     }
-  }, [user, authLoading, clearPlayer, resetLikes, resetPlaylists]);
+  }, [
+    user,
+    authLoading,
+    clearPlayer,
+    resetLikes,
+    resetPlaylists,
+    resetHistory,
+  ]);
 
   return null;
 }

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useAuthStore } from "@/presentation/stores/auth.store";
+import TrackSearchBar from "@/presentation/components/search/TrackSearchBar";
 
 export default function MusicTopBar() {
   const [profileOpen, setProfileOpen] = useState(false);
@@ -137,6 +138,19 @@ export default function MusicTopBar() {
         >
           {user.name}
         </h2>
+      </div>
+
+      <div
+        className="
+            mx-6
+            hidden
+            min-w-0
+            flex-1
+            justify-center
+            md:flex
+          "
+      >
+        <TrackSearchBar />
       </div>
 
       {/* PROFILE */}

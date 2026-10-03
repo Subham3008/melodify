@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePlayerStore } from "@/presentation/stores/player.store";
 import { useAuthStore } from "@/presentation/stores/auth.store";
 import { sendPlaybackEvent } from "@/application/history/history.usecases";
+import { useHistoryStore } from "@/presentation/stores/history.store";
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds)) {
@@ -43,6 +44,10 @@ export default function GlobalPlayer() {
 
   const authLoading = useAuthStore((state) => state.loading);
 
+  const pushRecentlyPlayed = useHistoryStore(
+    (state) => state.pushRecentlyPlayed,
+  );
+
   const [currentTime, setCurrentTime] = useState(0);
 
   const [duration, setDuration] = useState(0);
@@ -61,13 +66,23 @@ export default function GlobalPlayer() {
     }
 
     try {
-      await sendPlaybackEvent({
+      const playbackEvent = await sendPlaybackEvent({
         trackId: track.id,
 
         eventType,
 
         positionSeconds: Math.max(0, Math.floor(positionSeconds)),
       });
+
+      /*
+      |--------------------------------------------------------------------------
+      | Update Recently Played UI
+      |--------------------------------------------------------------------------
+      */
+
+      if (eventType === "PLAYED") {
+        pushRecentlyPlayed(track, playbackEvent?.createdAt);
+      }
     } catch (error) {
       /*
       |--------------------------------------------------------------------------
