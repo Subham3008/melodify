@@ -7,16 +7,25 @@ import {
 
 import { Track } from "../track/track.model.js";
 
+import { discoverTracks, getTracksByIds } from "../track/track.service.js";
+
+import type { TrackDTO } from "../track/track.types.js";
+
+import { logger } from "../../utils/logger.js";
+
 import {
   RecommendationProfile,
   type IArtistAffinity,
   type ITrackAffinity,
 } from "./recommendationProfile.model.js";
 
-import { getTracksByIds } from "../track/track.service.js";
-import type { TrackDTO } from "../track/track.types.js";
-
 const MAX_EVENTS_TO_ANALYZE = 500;
+
+const MAX_PREFERRED_ARTISTS = 10;
+
+const MAX_JAMENDO_ARTISTS_TO_REFRESH = 5;
+
+const JAMENDO_TRACKS_PER_ARTIST = 20;
 
 const getEventScore = (
   eventType: PlaybackEventType,
@@ -75,9 +84,36 @@ export const rebuildRecommendationProfile = async (
 
   const trackMap = new Map(tracks.map((track) => [String(track._id), track]));
 
-  const artistAffinities = new Map();
+  const artistAffinities = new Map<
+    string,
+    {
+      artistId: string;
+      artistName: string;
 
-  const trackAffinities = new Map();
+      score: number;
+
+      playCount: number;
+      completedCount: number;
+      skippedCount: number;
+
+      lastListenedAt: Date;
+    }
+  >();
+
+  const trackAffinities = new Map<
+    string,
+    {
+      trackId: mongoose.Types.ObjectId;
+
+      score: number;
+
+      playCount: number;
+      completedCount: number;
+      skippedCount: number;
+
+      lastListenedAt: Date;
+    }
+  >();
 
   for (const event of events) {
     const track = trackMap.get(String(event.trackId));
@@ -192,6 +228,23 @@ export const rebuildRecommendationProfile = async (
   );
 };
 
+const findRecommendationCandidates = async (
+  artistIds: string[],
+  excludedTrackIds: mongoose.Types.ObjectId[],
+) => {
+  return Track.find({
+    artistId: {
+      $in: artistIds,
+    },
+
+    _id: {
+      $nin: excludedTrackIds,
+    },
+  })
+    .limit(200)
+    .lean();
+};
+
 export const getRecommendations = async (
   userId: string,
   limit = 10,
@@ -210,14 +263,26 @@ export const getRecommendations = async (
     return [];
   }
 
+  /*
+  |--------------------------------------------------------------------------
+  | Preferred artists
+  |--------------------------------------------------------------------------
+  */
+
   const positiveArtists = (profile.artists as IArtistAffinity[])
     .filter((artist) => artist.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 10);
+    .slice(0, MAX_PREFERRED_ARTISTS);
 
   if (positiveArtists.length === 0) {
     return [];
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Recently played tracks
+  |--------------------------------------------------------------------------
+  */
 
   const recentEvents = await PlaybackEvent.find({
     userId,
@@ -231,25 +296,114 @@ export const getRecommendations = async (
 
   const recentTrackIds = recentEvents.map((event) => event.trackId);
 
+  /*
+  |--------------------------------------------------------------------------
+  | Negative tracks
+  |--------------------------------------------------------------------------
+  */
+
   const negativeTrackIds = (profile.tracks as ITrackAffinity[])
     .filter((track) => track.score < 0)
     .map((track) => track.trackId);
 
-  const artistScoreMap = new Map(
-    positiveArtists.map((artist) => [artist.artistId, artist.score]),
+  const excludedTrackIds = [...recentTrackIds, ...negativeTrackIds];
+
+  const preferredArtistIds = positiveArtists.map((artist) => artist.artistId);
+
+  /*
+  |--------------------------------------------------------------------------
+  | First try MongoDB
+  |--------------------------------------------------------------------------
+  */
+
+  let candidates = await findRecommendationCandidates(
+    preferredArtistIds,
+
+    excludedTrackIds,
   );
 
-  const candidates = await Track.find({
-    artistId: {
-      $in: positiveArtists.map((artist) => artist.artistId),
-    },
+  /*
+  |--------------------------------------------------------------------------
+  | Jamendo fallback
+  |--------------------------------------------------------------------------
+  |
+  | MongoDB me enough recommendations nahi hain:
+  |
+  | 1. user's top artists lo
+  | 2. Jamendo se un artist ke fresh tracks fetch karo
+  | 3. discoverTracks() automatically DB me upsert karega
+  | 4. DB se candidates dubara read karo
+  |
+  */
 
-    _id: {
-      $nin: [...recentTrackIds, ...negativeTrackIds],
-    },
-  })
-    .limit(150)
-    .lean();
+  if (candidates.length < safeLimit) {
+    const artistsToRefresh = positiveArtists.slice(
+      0,
+      MAX_JAMENDO_ARTISTS_TO_REFRESH,
+    );
+
+    for (const artist of artistsToRefresh) {
+      try {
+        await discoverTracks({
+          artistId: artist.artistId,
+
+          limit: JAMENDO_TRACKS_PER_ARTIST,
+
+          offset: 0,
+        });
+      } catch (error) {
+        /*
+        | Jamendo fail hone se recommendation
+        | endpoint completely fail nahi hona chahiye.
+        |
+        | Existing DB recommendations still
+        | return kar sakte hain.
+        */
+
+        logger.warn(
+          {
+            err: error,
+
+            userId,
+
+            artistId: artist.artistId,
+          },
+
+          "Unable to refresh recommendation tracks from Jamendo",
+        );
+      }
+
+      /*
+      | Jamendo tracks DB me save hone ke
+      | baad candidates dubara check karo.
+      */
+
+      candidates = await findRecommendationCandidates(
+        preferredArtistIds,
+
+        excludedTrackIds,
+      );
+
+      /*
+      | Enough recommendations mil gayi,
+      | extra Jamendo requests mat karo.
+      */
+
+      if (candidates.length >= safeLimit) {
+        break;
+      }
+    }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Ranking
+  |--------------------------------------------------------------------------
+  */
+
+  const artistScoreMap = new Map<string, number>(
+    positiveArtists.map((artist) => [artist.artistId, artist.score]),
+  );
 
   const rankedTrackIds = candidates
     .map((track) => ({
@@ -258,9 +412,19 @@ export const getRecommendations = async (
       score: artistScoreMap.get(track.artistId) ?? 0,
     }))
     .sort((a, b) => {
+      /*
+        | First preference:
+        | user affinity score
+        */
+
       if (b.score !== a.score) {
         return b.score - a.score;
       }
+
+      /*
+        | Second preference:
+        | freshest synchronized track
+        */
 
       return b.track.lastSyncedAt.getTime() - a.track.lastSyncedAt.getTime();
     })

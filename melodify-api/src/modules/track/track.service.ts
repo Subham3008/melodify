@@ -12,6 +12,7 @@ interface DiscoverTracksInput {
   limit?: number;
   offset?: number;
   search?: string;
+  artistId?: string;
 }
 
 interface GetTracksInput {

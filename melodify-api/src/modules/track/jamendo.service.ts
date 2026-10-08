@@ -8,12 +8,14 @@ interface GetJamendoTracksOptions {
   limit?: number;
   offset?: number;
   search?: string;
+  artistId?: string;
 }
 
 export const fetchJamendoTracks = async ({
   limit = 20,
   offset = 0,
   search,
+  artistId,
 }: GetJamendoTracksOptions = {}): Promise<NormalizedTrack[]> => {
   const safeLimit = Math.min(Math.max(limit, 1), 200);
 
@@ -32,6 +34,10 @@ export const fetchJamendoTracks = async ({
 
     imagesize: "300",
   });
+
+  if (artistId?.trim()) {
+    params.set("artist_id", artistId.trim());
+  }
 
   if (search?.trim()) {
     params.set("search", search.trim());
