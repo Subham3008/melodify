@@ -6,6 +6,8 @@ import { ApiError } from "../../utils/ApiError.js";
 
 import { getTracksByIds } from "../track/track.service.js";
 
+import { enqueueListeningEvent } from "../../queues/listening.queue.js";
+
 /*
 |--------------------------------------------------------------------------
 | Record playback event
@@ -47,6 +49,14 @@ export const recordPlaybackEvent = async (
     */
 
   const event = await PlaybackEvent.create({
+    userId,
+    trackId,
+    eventType,
+    positionSeconds,
+  });
+
+  await enqueueListeningEvent({
+    eventId: String(event._id),
     userId,
     trackId,
     eventType,

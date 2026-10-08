@@ -17,6 +17,8 @@ const envSchema = z.object({
 
   LOG_LEVEL: z.string().default("info"),
 
+  REDIS_URL: z.string().min(1, "REDIS_URL is required"),
+
   GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
 
   ACCESS_TOKEN_SECRET: z

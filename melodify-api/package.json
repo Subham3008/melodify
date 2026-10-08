@@ -6,8 +6,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
+    "worker:dev": "tsx watch src/workers/listening.worker.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "worker:start": "node dist/workers/listening.worker.js"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +17,7 @@
   "type": "module",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "bullmq": "^6.3.11",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -22,6 +25,7 @@
     "express-rate-limit": "^8.7.0",
     "google-auth-library": "^11.0.2",
     "helmet": "^8.3.0",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.10.1",
     "pino": "^10.3.1",
