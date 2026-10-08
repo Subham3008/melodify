@@ -1,6 +1,6 @@
 import mongoose, { Schema, Types } from "mongoose";
 
-interface IArtistAffinity {
+export interface IArtistAffinity {
   artistId: string;
   artistName: string;
 
@@ -13,7 +13,7 @@ interface IArtistAffinity {
   lastListenedAt: Date;
 }
 
-interface ITrackAffinity {
+export interface ITrackAffinity {
   trackId: Types.ObjectId;
 
   score: number;

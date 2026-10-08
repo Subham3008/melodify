@@ -7,7 +7,14 @@ import {
 
 import { Track } from "../track/track.model.js";
 
-import { RecommendationProfile } from "./recommendationProfile.model.js";
+import {
+  RecommendationProfile,
+  type IArtistAffinity,
+  type ITrackAffinity,
+} from "./recommendationProfile.model.js";
+
+import { getTracksByIds } from "../track/track.service.js";
+import type { TrackDTO } from "../track/track.types.js";
 
 const MAX_EVENTS_TO_ANALYZE = 500;
 
@@ -183,4 +190,82 @@ export const rebuildRecommendationProfile = async (
       new: true,
     },
   );
+};
+
+export const getRecommendations = async (
+  userId: string,
+  limit = 10,
+): Promise<TrackDTO[]> => {
+  if (!mongoose.isValidObjectId(userId)) {
+    return [];
+  }
+
+  const safeLimit = Math.min(Math.max(limit, 1), 20);
+
+  const profile = await RecommendationProfile.findOne({
+    userId,
+  }).lean();
+
+  if (!profile) {
+    return [];
+  }
+
+  const positiveArtists = (profile.artists as IArtistAffinity[])
+    .filter((artist) => artist.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+
+  if (positiveArtists.length === 0) {
+    return [];
+  }
+
+  const recentEvents = await PlaybackEvent.find({
+    userId,
+  })
+    .sort({
+      createdAt: -1,
+    })
+    .limit(15)
+    .select("trackId")
+    .lean();
+
+  const recentTrackIds = recentEvents.map((event) => event.trackId);
+
+  const negativeTrackIds = (profile.tracks as ITrackAffinity[])
+    .filter((track) => track.score < 0)
+    .map((track) => track.trackId);
+
+  const artistScoreMap = new Map(
+    positiveArtists.map((artist) => [artist.artistId, artist.score]),
+  );
+
+  const candidates = await Track.find({
+    artistId: {
+      $in: positiveArtists.map((artist) => artist.artistId),
+    },
+
+    _id: {
+      $nin: [...recentTrackIds, ...negativeTrackIds],
+    },
+  })
+    .limit(150)
+    .lean();
+
+  const rankedTrackIds = candidates
+    .map((track) => ({
+      track,
+
+      score: artistScoreMap.get(track.artistId) ?? 0,
+    }))
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+
+      return b.track.lastSyncedAt.getTime() - a.track.lastSyncedAt.getTime();
+    })
+    .slice(0, safeLimit)
+    .map(({ track }) => String(track._id));
+
+  return getTracksByIds(rankedTrackIds);
 };
