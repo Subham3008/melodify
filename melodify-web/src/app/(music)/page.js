@@ -7,6 +7,7 @@ import { useTrackStore } from "@/presentation/stores/track.store";
 import TrackGrid from "@/presentation/components/track/TrackGrid";
 import RecentlyPlayed from "@/presentation/components/history/RecentlyPlayed";
 import { useSearchParams } from "next/navigation";
+import RecommendedForYou from "@/presentation/components/recommendation/RecommendedForYou";
 
 export default function HomePage() {
   const searchParams = useSearchParams();
@@ -138,7 +139,11 @@ export default function HomePage() {
         "
       >
         {!urlSearchQuery && (
-          <RecentlyPlayed />
+          <>
+            <RecentlyPlayed />
+
+            <RecommendedForYou />
+          </>
         )}
         <div
           className="
