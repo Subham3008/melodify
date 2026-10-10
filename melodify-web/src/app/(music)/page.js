@@ -8,6 +8,7 @@ import TrackGrid from "@/presentation/components/track/TrackGrid";
 import RecentlyPlayed from "@/presentation/components/history/RecentlyPlayed";
 import { useSearchParams } from "next/navigation";
 import RecommendedForYou from "@/presentation/components/recommendation/RecommendedForYou";
+import BecauseYouListened from "@/presentation/components/recommendation/BecauseYouListened";
 
 export default function HomePage() {
   const searchParams = useSearchParams();
@@ -143,6 +144,8 @@ export default function HomePage() {
             <RecentlyPlayed />
 
             <RecommendedForYou />
+
+            <BecauseYouListened />
           </>
         )}
         <div
