@@ -1083,3 +1083,218 @@ export const getBecauseYouListenedTo = async (
     tracks,
   };
 };
+
+/*
+|--------------------------------------------------------------------------
+| More From Artists You Like
+|--------------------------------------------------------------------------
+|
+| Uses explicit preference signals:
+|
+| likedTrackCount
+| playlistTrackCount
+|
+| Listening score is only used as a tie-breaker.
+|
+*/
+
+export interface MoreFromLikedArtistResult {
+  artist: {
+    artistId: string;
+    artistName: string;
+  };
+
+  tracks: TrackDTO[];
+}
+
+export const getMoreFromLikedArtist = async (
+  userId: string,
+  limit = 6,
+): Promise<MoreFromLikedArtistResult | null> => {
+  if (!mongoose.isValidObjectId(userId)) {
+    return null;
+  }
+
+  const safeLimit = Math.min(Math.max(limit, 1), 10);
+
+  /*
+    |--------------------------------------------------------------------------
+    | Recommendation profile
+    |--------------------------------------------------------------------------
+    */
+
+  const profile = await RecommendationProfile.findOne({
+    userId,
+  }).lean();
+
+  if (!profile) {
+    return null;
+  }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Explicitly preferred artists
+    |--------------------------------------------------------------------------
+    |
+    | Important:
+    |
+    | "Artists You Like" should come from stronger explicit signals.
+    |
+    | So artist must have:
+    |
+    | like
+    | OR
+    | playlist addition
+    |
+    */
+
+  const preferredArtists = (profile.artists as IArtistAffinity[])
+    .filter(
+      (artist) => artist.likedTrackCount > 0 || artist.playlistTrackCount > 0,
+    )
+    .sort((a, b) => {
+      /*
+        |--------------------------------------------------------------------------
+        | First preference: likes
+        |--------------------------------------------------------------------------
+        */
+
+      if (b.likedTrackCount !== a.likedTrackCount) {
+        return b.likedTrackCount - a.likedTrackCount;
+      }
+
+      /*
+        |--------------------------------------------------------------------------
+        | Second preference: playlist additions
+        |--------------------------------------------------------------------------
+        */
+
+      if (b.playlistTrackCount !== a.playlistTrackCount) {
+        return b.playlistTrackCount - a.playlistTrackCount;
+      }
+
+      /*
+        |--------------------------------------------------------------------------
+        | Tie-breaker: overall recommendation score
+        |--------------------------------------------------------------------------
+        */
+
+      return b.score - a.score;
+    });
+
+  const topArtist = preferredArtists[0];
+
+  if (!topArtist) {
+    return null;
+  }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Tracks already interacted with
+    |--------------------------------------------------------------------------
+    |
+    | "More From" should preferably show fresh tracks.
+    |
+    | Therefore exclude tracks already present in user's profile.
+    |
+    */
+
+  const interactedTrackIds = (profile.tracks as ITrackAffinity[]).map(
+    (track) => track.trackId,
+  );
+
+  /*
+    |--------------------------------------------------------------------------
+    | First try MongoDB
+    |--------------------------------------------------------------------------
+    */
+
+  let candidates = await Track.find({
+    artistId: topArtist.artistId,
+
+    _id: {
+      $nin: interactedTrackIds,
+    },
+  })
+    .sort({
+      lastSyncedAt: -1,
+    })
+    .limit(safeLimit)
+    .lean();
+
+  /*
+    |--------------------------------------------------------------------------
+    | Jamendo fallback
+    |--------------------------------------------------------------------------
+    |
+    | Recommendation-specific tracks are saved with:
+    |
+    | isDiscoverable = false
+    |
+    | so Discover Music remains clean.
+    |
+    */
+
+  if (candidates.length < safeLimit) {
+    try {
+      await discoverTracks({
+        artistId: topArtist.artistId,
+
+        limit: 20,
+
+        offset: 0,
+
+        isDiscoverable: false,
+      });
+    } catch (error) {
+      logger.warn(
+        {
+          err: error,
+
+          userId,
+
+          artistId: topArtist.artistId,
+        },
+
+        "Unable to refresh tracks for liked artist",
+      );
+    }
+
+    /*
+      |--------------------------------------------------------------------------
+      | Query again after Jamendo sync
+      |--------------------------------------------------------------------------
+      */
+
+    candidates = await Track.find({
+      artistId: topArtist.artistId,
+
+      _id: {
+        $nin: interactedTrackIds,
+      },
+    })
+      .sort({
+        lastSyncedAt: -1,
+      })
+      .limit(safeLimit)
+      .lean();
+  }
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const trackIds = candidates.map((track) => String(track._id));
+
+  const tracks = await getTracksByIds(trackIds);
+
+  return {
+    artist: {
+      artistId: topArtist.artistId,
+
+      artistName: topArtist.artistName,
+    },
+
+    tracks,
+  };
+};

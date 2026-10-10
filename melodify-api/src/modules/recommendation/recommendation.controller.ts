@@ -5,6 +5,7 @@ import { ApiError } from "../../utils/ApiError.js";
 import {
   getRecommendations,
   getBecauseYouListenedTo,
+  getMoreFromLikedArtist,
 } from "./recommendation.service.js";
 
 /*
@@ -98,6 +99,53 @@ export const getBecauseYouListenedToController = async (
 
     data: {
       seedTrack: result.seedTrack,
+
+      tracks: result.tracks,
+    },
+  });
+};
+
+/*
+|--------------------------------------------------------------------------
+| More From Artists You Like
+|--------------------------------------------------------------------------
+*/
+
+export const getMoreFromLikedArtistController = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const userId = req.user?.userId;
+
+  if (!userId) {
+    throw new ApiError(401, "Unauthorized");
+  }
+
+  const requestedLimit = Number(req.query.limit ?? 6);
+
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(Math.max(Math.floor(requestedLimit), 1), 10)
+    : 6;
+
+  const result = await getMoreFromLikedArtist(userId, limit);
+
+  if (!result) {
+    res.status(200).json({
+      success: true,
+
+      data: null,
+    });
+
+    return;
+  }
+
+  res.status(200).json({
+    success: true,
+
+    count: result.tracks.length,
+
+    data: {
+      artist: result.artist,
 
       tracks: result.tracks,
     },

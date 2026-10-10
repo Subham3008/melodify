@@ -7,6 +7,7 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import {
   getRecommendationsController,
   getBecauseYouListenedToController,
+  getMoreFromLikedArtistController,
 } from "./recommendation.controller.js";
 
 const router = Router();
@@ -35,6 +36,11 @@ router.use(requireAuth);
 router.get(
   "/because-you-listened",
   asyncHandler(getBecauseYouListenedToController),
+);
+
+router.get(
+  "/more-from-liked-artist",
+  asyncHandler(getMoreFromLikedArtistController),
 );
 
 /*
