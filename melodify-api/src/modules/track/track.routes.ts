@@ -7,9 +7,17 @@ import {
   searchTracksAndArtistsController,
 } from "./track.controller.js";
 
+import { getAlbumDetailsController } from "./album.controller.js";
+
 import { asyncHandler } from "../../utils/asyncHandler.js";
 
 const router = Router();
+
+/*
+|--------------------------------------------------------------------------
+| Discover
+|--------------------------------------------------------------------------
+*/
 
 router.get("/discover", asyncHandler(discoverTracksController));
 
@@ -17,14 +25,34 @@ router.get("/discover", asyncHandler(discoverTracksController));
 |--------------------------------------------------------------------------
 | Universal search
 |--------------------------------------------------------------------------
-|
-| IMPORTANT:
-|
-| /search must stay before /:id.
-|
 */
 
 router.get("/search", asyncHandler(searchTracksAndArtistsController));
+
+/*
+|--------------------------------------------------------------------------
+| Album details
+|--------------------------------------------------------------------------
+|
+| IMPORTANT:
+|
+| Must stay BEFORE /:id.
+|
+| Otherwise Express could interpret:
+|
+| /albums/123
+|
+| incorrectly through generic routes.
+|
+*/
+
+router.get("/albums/:albumId", asyncHandler(getAlbumDetailsController));
+
+/*
+|--------------------------------------------------------------------------
+| Tracks
+|--------------------------------------------------------------------------
+*/
 
 router.get("/", asyncHandler(getTracksController));
 

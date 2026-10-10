@@ -15,6 +15,7 @@ interface GetJamendoTracksOptions {
   offset?: number;
   search?: string;
   artistId?: string;
+  albumId?: string;
 }
 
 /*
@@ -99,6 +100,7 @@ export const fetchJamendoTracks = async ({
   offset = 0,
   search,
   artistId,
+  albumId,
 }: GetJamendoTracksOptions = {}): Promise<NormalizedTrack[]> => {
   const safeLimit = Math.min(Math.max(limit, 1), 200);
 
@@ -126,6 +128,16 @@ export const fetchJamendoTracks = async ({
 
   if (artistId?.trim()) {
     params.set("artist_id", artistId.trim());
+  }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Album-specific tracks
+    |--------------------------------------------------------------------------
+    */
+
+  if (albumId?.trim()) {
+    params.set("album_id", albumId.trim());
   }
 
   /*
