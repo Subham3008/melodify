@@ -11,6 +11,7 @@ import RecommendedForYou from "@/presentation/components/recommendation/Recommen
 import BecauseYouListened from "@/presentation/components/recommendation/BecauseYouListened";
 import MoreFromLikedArtist from "@/presentation/components/recommendation/MoreFromLikedArtist";
 import PopularOnMelodify from "@/presentation/components/recommendation/PopularOnMelodify";
+import PopularArtists from "@/presentation/components/artist/PopularArtists";
 
 export default function HomePage() {
   const searchParams = useSearchParams();
@@ -150,6 +151,8 @@ export default function HomePage() {
             <BecauseYouListened />
 
             <MoreFromLikedArtist />
+
+            <PopularArtists />
 
             <PopularOnMelodify />
           </>

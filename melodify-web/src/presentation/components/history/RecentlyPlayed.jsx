@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 
 import { useAuthStore } from "@/presentation/stores/auth.store";
@@ -53,7 +54,7 @@ export default function RecentlyPlayed() {
 
   useEffect(() => {
     if (user && !initialized) {
-      fetchRecentlyPlayed(8);
+      void fetchRecentlyPlayed(8);
     }
   }, [user, initialized, fetchRecentlyPlayed]);
 
@@ -76,36 +77,20 @@ export default function RecentlyPlayed() {
   if (loading && recentTracks.length === 0) {
     return (
       <section className="mb-10">
-        <h2
-          className="
-            mb-5
-            text-2xl
-            font-black
-            text-white
-          "
-        >
-          Recently Played
-        </h2>
+        <h2 className="mb-5 text-2xl font-black text-white">Recently Played</h2>
 
-        <div
-          className="
-            grid
-            grid-cols-1
-            gap-3
-            md:grid-cols-2
-          "
-        >
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {Array.from({
             length: 6,
           }).map((_, index) => (
             <div
               key={index}
               className="
-                h-20
-                animate-pulse
-                rounded-lg
-                bg-[#242424]
-              "
+                  h-20
+                  animate-pulse
+                  rounded-lg
+                  bg-[#242424]
+                "
             />
           ))}
         </div>
@@ -156,48 +141,33 @@ export default function RecentlyPlayed() {
 
   return (
     <section className="mb-10">
-      {/* HEADER */}
+      {/*
+      |--------------------------------------------------------------------------
+      | Header
+      |--------------------------------------------------------------------------
+      */}
 
       <div className="mb-5">
-        <h2
-          className="
-            text-2xl
-            font-black
-            text-white
-          "
-        >
-          Recently Played
-        </h2>
+        <h2 className="text-2xl font-black text-white">Recently Played</h2>
 
-        <p
-          className="
-            mt-1
-            text-sm
-            text-neutral-400
-          "
-        >
+        <p className="mt-1 text-sm text-neutral-400">
           Jump back into your latest tracks
         </p>
       </div>
 
-      {/* RECENT TRACKS */}
+      {/*
+      |--------------------------------------------------------------------------
+      | Recent tracks
+      |--------------------------------------------------------------------------
+      */}
 
-      <div
-        className="
-          grid
-          grid-cols-1
-          gap-3
-          md:grid-cols-2
-        "
-      >
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {recentTracks.slice(0, 8).map((track) => {
           const isCurrentTrack = currentTrack?.id === track.id;
 
           return (
-            <button
+            <article
               key={track.id}
-              type="button"
-              onClick={() => handleTrackClick(track)}
               className="
                   group
                   relative
@@ -207,32 +177,68 @@ export default function RecentlyPlayed() {
                   overflow-hidden
                   rounded-lg
                   bg-[#242424]
-                  text-left
                   transition
                   hover:bg-[#343434]
                 "
             >
-              {/* IMAGE */}
+              {/*
+                |--------------------------------------------------------------------------
+                | Full-card playback action
+                |--------------------------------------------------------------------------
+                |
+                | Ye background layer hai.
+                |
+                | Artist Link aur green Play button iske upar render honge,
+                | so unka apna click behavior preserve rahega.
+                |
+                */}
 
-              <img
-                src={track.imageUrl}
-                alt={track.title}
+              <button
+                type="button"
+                onClick={() => handleTrackClick(track)}
                 className="
-                    h-20
-                    w-20
-                    shrink-0
-                    object-cover
+                    absolute
+                    inset-0
+                    z-0
+                    cursor-pointer
                   "
+                aria-label={`Play ${track.title}`}
               />
 
-              {/* TRACK INFO */}
+              {/*
+                |--------------------------------------------------------------------------
+                | Image
+                |--------------------------------------------------------------------------
+                */}
+
+              <div className="relative z-10 pointer-events-none">
+                <img
+                  src={track.imageUrl}
+                  alt={track.title}
+                  className="
+                      h-20
+                      w-20
+                      shrink-0
+                      object-cover
+                    "
+                />
+              </div>
+
+              {/*
+                |--------------------------------------------------------------------------
+                | Track info
+                |--------------------------------------------------------------------------
+                */}
 
               <div
                 className="
+                    relative
+                    z-10
                     min-w-0
                     flex-1
                     px-4
                     pr-14
+                    pointer-events-none
                   "
               >
                 <p
@@ -247,24 +253,58 @@ export default function RecentlyPlayed() {
                   {track.title}
                 </p>
 
-                <p
-                  className="
-                      mt-1
-                      truncate
-                      text-xs
-                      text-neutral-400
-                    "
-                >
-                  {track.artistName}
-                </p>
+                {/*
+                  |--------------------------------------------------------------------------
+                  | Artist navigation
+                  |--------------------------------------------------------------------------
+                  */}
+
+                {track.artistId ? (
+                  <Link
+                    href={`/artist/${track.artistId}`}
+                    className="
+                        pointer-events-auto
+                        mt-1
+                        block
+                        w-fit
+                        max-w-full
+                        truncate
+                        text-xs
+                        text-neutral-400
+                        transition
+                        hover:text-white
+                        hover:underline
+                      "
+                  >
+                    {track.artistName}
+                  </Link>
+                ) : (
+                  <p
+                    className="
+                        mt-1
+                        truncate
+                        text-xs
+                        text-neutral-400
+                      "
+                  >
+                    {track.artistName}
+                  </p>
+                )}
               </div>
 
-              {/* PLAY BUTTON */}
+              {/*
+                |--------------------------------------------------------------------------
+                | Play button
+                |--------------------------------------------------------------------------
+                */}
 
-              <div
+              <button
+                type="button"
+                onClick={() => handleTrackClick(track)}
                 className={`
                     absolute
                     right-4
+                    z-20
                     flex
                     h-11
                     w-11
@@ -283,10 +323,15 @@ export default function RecentlyPlayed() {
                         : "translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100"
                     }
                   `}
+                aria-label={
+                  isCurrentTrack && isPlaying
+                    ? `Pause ${track.title}`
+                    : `Play ${track.title}`
+                }
               >
                 {isCurrentTrack && isPlaying ? "⏸" : "▶"}
-              </div>
-            </button>
+              </button>
+            </article>
           );
         })}
       </div>

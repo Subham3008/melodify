@@ -1,7 +1,11 @@
 "use client";
 
+import Link from "next/link";
+
 import { usePlayerStore } from "@/presentation/stores/player.store";
+
 import LikeButton from "@/presentation/components/like/LikeButton";
+
 import AddToPlaylistButton from "@/presentation/components/playlist/AddToPlaylistButton";
 
 export default function TrackCard({ track, queue = [], onRemove }) {
@@ -13,9 +17,14 @@ export default function TrackCard({ track, queue = [], onRemove }) {
 
   const isCurrentTrack = currentTrack?.id === track.id;
 
-  const minutes = Math.floor(track.durationSeconds / 60);
+  const totalSeconds = Math.max(
+    Math.floor(Number(track.durationSeconds) || 0),
+    0,
+  );
 
-  const seconds = String(track.durationSeconds % 60).padStart(2, "0");
+  const minutes = Math.floor(totalSeconds / 60);
+
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
 
   const handlePlay = () => {
     playTrack(track, queue);
@@ -45,19 +54,32 @@ export default function TrackCard({ track, queue = [], onRemove }) {
             shadow-lg
           "
         />
+
+        {/*
+        |--------------------------------------------------------------------------
+        | Top-right controls
+        |--------------------------------------------------------------------------
+        */}
+
         <div
           className="
-              absolute
-              top-3
-              right-3
-              flex
-              gap-2
-            "
+            absolute
+            top-3
+            right-3
+            flex
+            gap-2
+          "
         >
           <AddToPlaylistButton track={track} />
 
           <LikeButton track={track} />
         </div>
+
+        {/*
+        |--------------------------------------------------------------------------
+        | Play button
+        |--------------------------------------------------------------------------
+        */}
 
         <button
           type="button"
@@ -87,6 +109,12 @@ export default function TrackCard({ track, queue = [], onRemove }) {
       </div>
 
       <div className="mt-4">
+        {/*
+        |--------------------------------------------------------------------------
+        | Track title
+        |--------------------------------------------------------------------------
+        */}
+
         <h3
           className={`
             truncate
@@ -97,16 +125,42 @@ export default function TrackCard({ track, queue = [], onRemove }) {
           {track.title}
         </h3>
 
-        <p
-          className="
-            mt-1
-            truncate
-            text-sm
-            text-neutral-400
-          "
-        >
-          {track.artistName}
-        </p>
+        {/*
+        |--------------------------------------------------------------------------
+        | Artist navigation
+        |--------------------------------------------------------------------------
+        |
+        | Every TrackCard now links artist -> artist details page.
+        |
+        */}
+
+        {track.artistId ? (
+          <Link
+            href={`/artist/${track.artistId}`}
+            className="
+              mt-1
+              block
+              truncate
+              text-sm
+              text-neutral-400
+              hover:text-white
+              hover:underline
+            "
+          >
+            {track.artistName}
+          </Link>
+        ) : (
+          <p
+            className="
+              mt-1
+              truncate
+              text-sm
+              text-neutral-400
+            "
+          >
+            {track.artistName}
+          </p>
+        )}
 
         <div
           className="
@@ -125,6 +179,7 @@ export default function TrackCard({ track, queue = [], onRemove }) {
             {minutes}:{seconds}
           </span>
         </div>
+
         {onRemove && (
           <button
             type="button"
@@ -134,12 +189,12 @@ export default function TrackCard({ track, queue = [], onRemove }) {
               onRemove();
             }}
             className="
-                mt-3
-                text-xs
-                font-semibold
-                text-red-400
-                hover:text-red-300
-              "
+              mt-3
+              text-xs
+              font-semibold
+              text-red-400
+              hover:text-red-300
+            "
           >
             Remove from playlist
           </button>
