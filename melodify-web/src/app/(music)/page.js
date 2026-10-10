@@ -10,6 +10,7 @@ import { useSearchParams } from "next/navigation";
 import RecommendedForYou from "@/presentation/components/recommendation/RecommendedForYou";
 import BecauseYouListened from "@/presentation/components/recommendation/BecauseYouListened";
 import MoreFromLikedArtist from "@/presentation/components/recommendation/MoreFromLikedArtist";
+import PopularOnMelodify from "@/presentation/components/recommendation/PopularOnMelodify";
 
 export default function HomePage() {
   const searchParams = useSearchParams();
@@ -149,6 +150,8 @@ export default function HomePage() {
             <BecauseYouListened />
 
             <MoreFromLikedArtist />
+
+            <PopularOnMelodify />
           </>
         )}
         <div
