@@ -9,6 +9,7 @@ import RecentlyPlayed from "@/presentation/components/history/RecentlyPlayed";
 import { useSearchParams } from "next/navigation";
 import RecommendedForYou from "@/presentation/components/recommendation/RecommendedForYou";
 import BecauseYouListened from "@/presentation/components/recommendation/BecauseYouListened";
+import MoreFromLikedArtist from "@/presentation/components/recommendation/MoreFromLikedArtist";
 
 export default function HomePage() {
   const searchParams = useSearchParams();
@@ -146,6 +147,8 @@ export default function HomePage() {
             <RecommendedForYou />
 
             <BecauseYouListened />
+
+            <MoreFromLikedArtist />
           </>
         )}
         <div
