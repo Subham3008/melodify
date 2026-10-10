@@ -23,6 +23,8 @@ import {
   type ITrackAffinity,
 } from "./recommendationProfile.model.js";
 
+import { invalidateUserRecommendationCache } from "../../utils/cache.js";
+
 /*
 |--------------------------------------------------------------------------
 | Recommendation constants
@@ -190,6 +192,14 @@ export const rebuildRecommendationProfile = async (
     await RecommendationProfile.deleteOne({
       userId,
     });
+
+    /*
+  |--------------------------------------------------------------------------
+  | Clear stale recommendation cache
+  |--------------------------------------------------------------------------
+  */
+
+    await invalidateUserRecommendationCache(userId);
 
     return;
   }
@@ -531,6 +541,17 @@ export const rebuildRecommendationProfile = async (
       new: true,
     },
   );
+
+  /*
+|--------------------------------------------------------------------------
+| Recommendation profile changed
+|--------------------------------------------------------------------------
+|
+| Cached personalized recommendations are now stale.
+|
+*/
+
+  await invalidateUserRecommendationCache(userId);
 };
 
 /*

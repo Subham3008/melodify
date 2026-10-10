@@ -2,15 +2,26 @@ import type { Request, Response } from "express";
 
 import { ApiError } from "../../utils/ApiError.js";
 
+import { CACHE_TTL, cacheKeys, getCache, setCache } from "../../utils/cache.js";
+
 import {
   getRecommendations,
   getBecauseYouListenedTo,
   getMoreFromLikedArtist,
 } from "./recommendation.service.js";
 
-import { getPopularTracks, getPopularArtists } from "./popular.service.js";
+import {
+  getPopularTracks,
+  getPopularArtists,
+  type PopularArtist,
+} from "./popular.service.js";
 
-import { getArtistDetails } from "./artist.service.js";
+import {
+  getArtistDetails,
+  type ArtistDetailsResult,
+} from "./artist.service.js";
+
+import type { TrackDTO } from "../track/track.types.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -34,7 +45,37 @@ export const getRecommendationsController = async (
     ? Math.min(Math.max(Math.floor(requestedLimit), 1), 20)
     : 10;
 
+  const cacheKey = cacheKeys.recommendations(userId, limit);
+
+  /*
+    |--------------------------------------------------------------------------
+    | Redis first
+    |--------------------------------------------------------------------------
+    */
+
+  const cached = await getCache<TrackDTO[]>(cacheKey);
+
+  if (cached) {
+    res.status(200).json({
+      success: true,
+
+      count: cached.length,
+
+      data: cached,
+    });
+
+    return;
+  }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Calculate
+    |--------------------------------------------------------------------------
+    */
+
   const tracks = await getRecommendations(userId, limit);
+
+  await setCache(cacheKey, tracks, CACHE_TTL.PERSONALIZED_RECOMMENDATIONS);
 
   res.status(200).json({
     success: true,
@@ -67,7 +108,47 @@ export const getBecauseYouListenedToController = async (
     ? Math.min(Math.max(Math.floor(requestedLimit), 1), 10)
     : 6;
 
+  const cacheKey = cacheKeys.becauseYouListened(userId, limit);
+
+  type BecauseResult = {
+    seedTrack: TrackDTO;
+
+    tracks: TrackDTO[];
+  };
+
+  const cached = await getCache<BecauseResult | null>(cacheKey);
+
+  /*
+    |--------------------------------------------------------------------------
+    | Cached result
+    |--------------------------------------------------------------------------
+    */
+
+  if (cached) {
+    res.status(200).json({
+      success: true,
+
+      count: cached.tracks.length,
+
+      data: cached,
+    });
+
+    return;
+  }
+
   const result = await getBecauseYouListenedTo(userId, limit);
+
+  /*
+    |--------------------------------------------------------------------------
+    | No result
+    |--------------------------------------------------------------------------
+    |
+    | Null result ko cache nahi kar rahe.
+    |
+    | New user kuch seconds later song play kare to section immediately
+    | available ho sake.
+    |
+    */
 
   if (!result) {
     res.status(200).json({
@@ -78,6 +159,8 @@ export const getBecauseYouListenedToController = async (
 
     return;
   }
+
+  await setCache(cacheKey, result, CACHE_TTL.PERSONALIZED_RECOMMENDATIONS);
 
   res.status(200).json({
     success: true,
@@ -114,6 +197,32 @@ export const getMoreFromLikedArtistController = async (
     ? Math.min(Math.max(Math.floor(requestedLimit), 1), 10)
     : 6;
 
+  const cacheKey = cacheKeys.moreFromLikedArtist(userId, limit);
+
+  type MoreFromResult = {
+    artist: {
+      artistId: string;
+
+      artistName: string;
+    };
+
+    tracks: TrackDTO[];
+  };
+
+  const cached = await getCache<MoreFromResult | null>(cacheKey);
+
+  if (cached) {
+    res.status(200).json({
+      success: true,
+
+      count: cached.tracks.length,
+
+      data: cached,
+    });
+
+    return;
+  }
+
   const result = await getMoreFromLikedArtist(userId, limit);
 
   if (!result) {
@@ -125,6 +234,8 @@ export const getMoreFromLikedArtistController = async (
 
     return;
   }
+
+  await setCache(cacheKey, result, CACHE_TTL.PERSONALIZED_RECOMMENDATIONS);
 
   res.status(200).json({
     success: true,
@@ -155,7 +266,25 @@ export const getPopularTracksController = async (
     ? Math.min(Math.max(Math.floor(requestedLimit), 1), 20)
     : 10;
 
+  const cacheKey = cacheKeys.popularTracks(limit);
+
+  const cached = await getCache<TrackDTO[]>(cacheKey);
+
+  if (cached) {
+    res.status(200).json({
+      success: true,
+
+      count: cached.length,
+
+      data: cached,
+    });
+
+    return;
+  }
+
   const tracks = await getPopularTracks(limit);
+
+  await setCache(cacheKey, tracks, CACHE_TTL.POPULAR_TRACKS);
 
   res.status(200).json({
     success: true,
@@ -182,7 +311,25 @@ export const getPopularArtistsController = async (
     ? Math.min(Math.max(Math.floor(requestedLimit), 1), 10)
     : 6;
 
+  const cacheKey = cacheKeys.popularArtists(limit);
+
+  const cached = await getCache<PopularArtist[]>(cacheKey);
+
+  if (cached) {
+    res.status(200).json({
+      success: true,
+
+      count: cached.length,
+
+      data: cached,
+    });
+
+    return;
+  }
+
   const artists = await getPopularArtists(limit);
+
+  await setCache(cacheKey, artists, CACHE_TTL.POPULAR_ARTISTS);
 
   res.status(200).json({
     success: true,
@@ -219,7 +366,25 @@ export const getArtistDetailsController = async (
     ? Math.min(Math.max(Math.floor(requestedLimit), 1), 50)
     : 20;
 
+  const cacheKey = cacheKeys.artistDetails(artistId, limit);
+
+  const cached = await getCache<ArtistDetailsResult>(cacheKey);
+
+  if (cached) {
+    res.status(200).json({
+      success: true,
+
+      count: cached.tracks.length,
+
+      data: cached,
+    });
+
+    return;
+  }
+
   const result = await getArtistDetails(artistId, limit);
+
+  await setCache(cacheKey, result, CACHE_TTL.ARTIST_DETAILS);
 
   res.status(200).json({
     success: true,
