@@ -181,19 +181,6 @@ export const rebuildRecommendationProfile = async (
   |--------------------------------------------------------------------------
   | No recommendation signals
   |--------------------------------------------------------------------------
-  |
-  | Previously we only checked:
-  |
-  | events.length === 0
-  |
-  | But now a user may:
-  |
-  | like a track without playing it much
-  | OR
-  | add tracks to playlists
-  |
-  | so we only delete profile when ALL signals are empty.
-  |
   */
 
   const hasAnySignal =
@@ -291,9 +278,6 @@ export const rebuildRecommendationProfile = async (
   |--------------------------------------------------------------------------
   | Helper: get or create affinities
   |--------------------------------------------------------------------------
-  |
-  | Playback, Like and Playlist all use same helper.
-  |
   */
 
   const getAffinities = (trackId: string, signalAt: Date) => {
@@ -359,13 +343,6 @@ export const rebuildRecommendationProfile = async (
     |--------------------------------------------------------------------------
     | Latest activity timestamp
     |--------------------------------------------------------------------------
-    |
-    | Field name remains lastListenedAt because that's already part
-    | of RecommendationProfile schema.
-    |
-    | For Like / Playlist-only tracks this represents latest
-    | recommendation activity timestamp.
-    |
     */
 
     if (signalAt > artistAffinity.lastListenedAt) {
@@ -455,17 +432,6 @@ export const rebuildRecommendationProfile = async (
   |--------------------------------------------------------------------------
   | 2. Like signals
   |--------------------------------------------------------------------------
-  |
-  | Like = strong positive intent.
-  |
-  | Example:
-  |
-  | PLAYED     +1
-  | COMPLETED  +5
-  | LIKED      +8
-  |
-  | total      14
-  |
   */
 
   for (const like of likes) {
@@ -492,18 +458,6 @@ export const rebuildRecommendationProfile = async (
   |--------------------------------------------------------------------------
   | 3. Playlist signals
   |--------------------------------------------------------------------------
-  |
-  | Every playlist occurrence contributes +6.
-  |
-  | Track in:
-  |
-  | Gym playlist
-  | Favorites playlist
-  |
-  | playlistCount = 2
-  |
-  | score = +12
-  |
   */
 
   for (const item of playlistTrackSignals) {
@@ -702,17 +656,6 @@ export const getRecommendations = async (
   |--------------------------------------------------------------------------
   | Jamendo fallback
   |--------------------------------------------------------------------------
-  |
-  | MongoDB me enough recommendations nahi hain:
-  |
-  | 1. user's top artists lo
-  |
-  | 2. Jamendo se un artist ke fresh tracks fetch karo
-  |
-  | 3. discoverTracks() automatically MongoDB me upsert karega
-  |
-  | 4. DB se candidates dubara read karo
-  |
   */
 
   if (candidates.length < safeLimit) {
@@ -732,18 +675,6 @@ export const getRecommendations = async (
           offset: 0,
         });
       } catch (error) {
-        /*
-        |--------------------------------------------------------------------------
-        | Jamendo failure
-        |--------------------------------------------------------------------------
-        |
-        | Recommendation endpoint should not completely fail
-        | just because Jamendo temporarily fails.
-        |
-        | Existing MongoDB recommendations can still be returned.
-        |
-        */
-
         logger.warn(
           {
             err: error,
@@ -783,62 +714,156 @@ export const getRecommendations = async (
 
   /*
   |--------------------------------------------------------------------------
-  | Ranking
+  | Diversified ranking
   |--------------------------------------------------------------------------
   |
-  | Artist affinity now includes:
+  | Problem:
   |
-  | listening
-  | completion
-  | skipping
-  | likes
-  | playlists
+  | Agar top artist ke bahut saare tracks available hain,
+  | to recommendation list same artist se fill ho sakti hai.
+  |
+  | Example:
+  |
+  | Artist A - Song 1
+  | Artist A - Song 2
+  | Artist A - Song 3
+  | Artist A - Song 4
+  |
+  | Better:
+  |
+  | Artist A - Song 1
+  | Artist B - Song 1
+  | Artist C - Song 1
+  | Artist A - Song 2
+  |
+  | Strategy:
+  |
+  | 1. Candidates artist-wise group karo
+  | 2. Har artist ke tracks freshness ke according sort karo
+  | 3. Preferred artist score order maintain karo
+  | 4. Round-robin selection karo
   |
   */
 
-  const artistScoreMap = new Map<string, number>(
-    positiveArtists.map((artist) => [artist.artistId, artist.score]),
-  );
+  const candidatesByArtist = new Map<string, typeof candidates>();
 
   /*
   |--------------------------------------------------------------------------
-  | Rank candidates
+  | Group tracks by artist
   |--------------------------------------------------------------------------
   */
 
-  const rankedTrackIds = candidates
-    .map((track) => ({
-      track,
+  for (const track of candidates) {
+    const artistTracks = candidatesByArtist.get(track.artistId) ?? [];
 
-      score: artistScoreMap.get(track.artistId) ?? 0,
-    }))
-    .sort((a, b) => {
-      /*
-          |--------------------------------------------------------------------------
-          | First preference
-          |--------------------------------------------------------------------------
-          |
-          | User affinity score
-          |
-          */
+    artistTracks.push(track);
 
-      if (b.score !== a.score) {
-        return b.score - a.score;
+    candidatesByArtist.set(track.artistId, artistTracks);
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Fresh tracks first inside each artist
+  |--------------------------------------------------------------------------
+  */
+
+  for (const artistTracks of candidatesByArtist.values()) {
+    artistTracks.sort(
+      (a, b) => b.lastSyncedAt.getTime() - a.lastSyncedAt.getTime(),
+    );
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Preferred artist order
+  |--------------------------------------------------------------------------
+  |
+  | positiveArtists already:
+  |
+  | highest score
+  | ↓
+  | lowest score
+  |
+  | So we don't need artistScoreMap anymore.
+  |
+  */
+
+  const preferredArtistOrder = positiveArtists.map((artist) => artist.artistId);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Round-robin diversified selection
+  |--------------------------------------------------------------------------
+  |
+  | Example:
+  |
+  | A tracks:
+  | A1 A2 A3
+  |
+  | B tracks:
+  | B1 B2
+  |
+  | C tracks:
+  | C1
+  |
+  | Result:
+  |
+  | A1 B1 C1 A2 B2 A3
+  |
+  */
+
+  const diversifiedTracks: typeof candidates = [];
+
+  let round = 0;
+
+  while (diversifiedTracks.length < safeLimit) {
+    let addedInThisRound = false;
+
+    for (const artistId of preferredArtistOrder) {
+      const artistTracks = candidatesByArtist.get(artistId);
+
+      if (!artistTracks || artistTracks.length === 0) {
+        continue;
       }
 
-      /*
-          |--------------------------------------------------------------------------
-          | Second preference
-          |--------------------------------------------------------------------------
-          |
-          | Freshest synchronized track
-          |
-          */
+      const track = artistTracks[round];
 
-      return b.track.lastSyncedAt.getTime() - a.track.lastSyncedAt.getTime();
-    })
-    .slice(0, safeLimit)
-    .map(({ track }) => String(track._id));
+      if (!track) {
+        continue;
+      }
+
+      diversifiedTracks.push(track);
+
+      addedInThisRound = true;
+
+      if (diversifiedTracks.length >= safeLimit) {
+        break;
+      }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | No artist had a track for this round
+    |--------------------------------------------------------------------------
+    |
+    | Means all available candidates are exhausted.
+    |
+    */
+
+    if (!addedInThisRound) {
+      break;
+    }
+
+    round += 1;
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Convert selected tracks to IDs
+  |--------------------------------------------------------------------------
+  */
+
+  const rankedTrackIds = diversifiedTracks.map((track) => String(track._id));
 
   return getTracksByIds(rankedTrackIds);
 };
