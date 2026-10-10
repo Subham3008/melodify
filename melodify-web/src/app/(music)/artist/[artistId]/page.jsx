@@ -12,6 +12,12 @@ import LikeButton from "@/presentation/components/like/LikeButton";
 
 import AddToPlaylistButton from "@/presentation/components/playlist/AddToPlaylistButton";
 
+/*
+|--------------------------------------------------------------------------
+| Format duration
+|--------------------------------------------------------------------------
+*/
+
 const formatDuration = (durationSeconds) => {
   const totalSeconds = Math.max(Math.floor(Number(durationSeconds) || 0), 0);
 
@@ -25,6 +31,12 @@ const formatDuration = (durationSeconds) => {
 export default function ArtistPage({ params }) {
   const { artistId } = use(params);
 
+  /*
+  |--------------------------------------------------------------------------
+  | Artist store
+  |--------------------------------------------------------------------------
+  */
+
   const artist = useArtistStore((state) => state.artist);
 
   const tracks = useArtistStore((state) => state.tracks);
@@ -36,6 +48,12 @@ export default function ArtistPage({ params }) {
   const fetchArtist = useArtistStore((state) => state.fetchArtist);
 
   const clearArtist = useArtistStore((state) => state.clearArtist);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Player store
+  |--------------------------------------------------------------------------
+  */
 
   const playTrack = usePlayerStore((state) => state.playTrack);
 
@@ -104,8 +122,50 @@ export default function ArtistPage({ params }) {
     );
   }
 
-  const artistQueueIsPlaying =
-    tracks.some((track) => track.id === currentTrack?.id) && isPlaying;
+  /*
+  |--------------------------------------------------------------------------
+  | Artist queue state
+  |--------------------------------------------------------------------------
+  */
+
+  const currentTrackBelongsToArtist = tracks.some(
+    (track) => track.id === currentTrack?.id,
+  );
+
+  const artistQueueIsPlaying = currentTrackBelongsToArtist && isPlaying;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Unique albums
+  |--------------------------------------------------------------------------
+  |
+  | Artist endpoint ke tracks already albumId + albumName carry karte hain.
+  |
+  | Same album ke multiple tracks ko Map ke through deduplicate kar rahe hain.
+  |
+  */
+
+  const albums = Array.from(
+    new Map(
+      tracks
+        .filter((track) => track.albumId && track.albumName)
+        .map((track) => [
+          track.albumId,
+
+          {
+            albumId: track.albumId,
+
+            albumName: track.albumName,
+
+            imageUrl: track.imageUrl,
+
+            artistId: track.artistId,
+
+            artistName: track.artistName,
+          },
+        ]),
+    ).values(),
+  ).slice(0, 8);
 
   /*
   |--------------------------------------------------------------------------
@@ -120,11 +180,11 @@ export default function ArtistPage({ params }) {
 
     /*
       |--------------------------------------------------------------------------
-      | Current artist already playing
+      | Current artist already active
       |--------------------------------------------------------------------------
       */
 
-    if (currentTrack && tracks.some((track) => track.id === currentTrack.id)) {
+    if (currentTrackBelongsToArtist) {
       togglePlay();
 
       return;
@@ -268,7 +328,7 @@ export default function ArtistPage({ params }) {
             </h1>
 
             <p className="mt-5 text-sm font-medium text-neutral-200">
-              {tracks.length} tracks
+              {tracks.length} {tracks.length === 1 ? "track" : "tracks"}
             </p>
           </div>
         </div>
@@ -329,6 +389,142 @@ export default function ArtistPage({ params }) {
 
         {/*
         |--------------------------------------------------------------------------
+        | Albums
+        |--------------------------------------------------------------------------
+        */}
+
+        {albums.length > 0 && (
+          <section className="mb-12">
+            <h2 className="mb-5 text-2xl font-black text-white">Albums</h2>
+
+            <div
+              className="
+                grid
+                grid-cols-2
+                gap-3
+                sm:grid-cols-3
+                lg:grid-cols-4
+                xl:grid-cols-5
+              "
+            >
+              {albums.map((album) => (
+                <Link
+                  key={album.albumId}
+                  href={`/album/${album.albumId}`}
+                  className="
+                      group
+                      min-w-0
+                      rounded-lg
+                      p-3
+                      transition
+                      hover:bg-[#1f1f1f]
+                    "
+                >
+                  {/*
+                    |--------------------------------------------------------------------------
+                    | Album cover
+                    |--------------------------------------------------------------------------
+                    */}
+
+                  <div className="relative">
+                    {album.imageUrl ? (
+                      <img
+                        src={album.imageUrl}
+                        alt={album.albumName}
+                        className="
+                            aspect-square
+                            w-full
+                            rounded-md
+                            object-cover
+                            shadow-xl
+                          "
+                      />
+                    ) : (
+                      <div
+                        className="
+                            flex
+                            aspect-square
+                            w-full
+                            items-center
+                            justify-center
+                            rounded-md
+                            bg-neutral-800
+                            text-5xl
+                            text-neutral-400
+                            shadow-xl
+                          "
+                      >
+                        ♫
+                      </div>
+                    )}
+
+                    {/*
+                      |--------------------------------------------------------------------------
+                      | Hover play-style decoration
+                      |--------------------------------------------------------------------------
+                      */}
+
+                    <div
+                      className="
+                          absolute
+                          right-2
+                          bottom-2
+                          flex
+                          h-12
+                          w-12
+                          translate-y-2
+                          items-center
+                          justify-center
+                          rounded-full
+                          bg-[#1ed760]
+                          text-lg
+                          text-black
+                          opacity-0
+                          shadow-xl
+                          transition-all
+                          group-hover:translate-y-0
+                          group-hover:opacity-100
+                        "
+                    >
+                      ▶
+                    </div>
+                  </div>
+
+                  {/*
+                    |--------------------------------------------------------------------------
+                    | Album info
+                    |--------------------------------------------------------------------------
+                    */}
+
+                  <h3
+                    className="
+                        mt-4
+                        truncate
+                        font-bold
+                        text-white
+                      "
+                  >
+                    {album.albumName}
+                  </h3>
+
+                  <p
+                    className="
+                        mt-1
+                        truncate
+                        text-sm
+                        text-neutral-400
+                      "
+                  >
+                    Album
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/*
+        |--------------------------------------------------------------------------
         | Popular
         |--------------------------------------------------------------------------
         */}
@@ -356,6 +552,7 @@ export default function ArtistPage({ params }) {
                         px-3
                         py-2
                         transition
+
                         ${isCurrent ? "bg-white/5" : "hover:bg-white/10"}
                       `}
                   >
@@ -405,16 +602,33 @@ export default function ArtistPage({ params }) {
                       onClick={() => playTrack(track, tracks)}
                       className="block"
                     >
-                      <img
-                        src={track.imageUrl}
-                        alt={track.title}
-                        className="
-                            h-12
-                            w-12
-                            rounded
-                            object-cover
-                          "
-                      />
+                      {track.imageUrl ? (
+                        <img
+                          src={track.imageUrl}
+                          alt={track.title}
+                          className="
+                              h-12
+                              w-12
+                              rounded
+                              object-cover
+                            "
+                        />
+                      ) : (
+                        <div
+                          className="
+                              flex
+                              h-12
+                              w-12
+                              items-center
+                              justify-center
+                              rounded
+                              bg-neutral-800
+                              text-neutral-400
+                            "
+                        >
+                          ♫
+                        </div>
+                      )}
                     </button>
 
                     {/*
@@ -434,15 +648,35 @@ export default function ArtistPage({ params }) {
                             text-left
                             font-semibold
                             hover:underline
+
                             ${isCurrent ? "text-[#1ed760]" : "text-white"}
                           `}
                       >
                         {track.title}
                       </button>
 
-                      <p className="mt-1 truncate text-sm text-neutral-400">
-                        {track.albumName || track.artistName}
-                      </p>
+                      {track.albumId && track.albumName ? (
+                        <Link
+                          href={`/album/${track.albumId}`}
+                          className="
+                              mt-1
+                              block
+                              w-fit
+                              max-w-full
+                              truncate
+                              text-sm
+                              text-neutral-400
+                              hover:text-white
+                              hover:underline
+                            "
+                        >
+                          {track.albumName}
+                        </Link>
+                      ) : (
+                        <p className="mt-1 truncate text-sm text-neutral-400">
+                          {track.artistName}
+                        </p>
+                      )}
                     </div>
 
                     {/*

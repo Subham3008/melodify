@@ -173,7 +173,20 @@ export default function TrackCard({ track, queue = [], onRemove }) {
             text-neutral-500
           "
         >
-          <span className="truncate">{track.albumName || "Single"}</span>
+          {track.albumId && track.albumName ? (
+            <Link
+              href={`/album/${track.albumId}`}
+              className="
+                      truncate
+                      hover:text-white
+                      hover:underline
+                    "
+            >
+              {track.albumName}
+            </Link>
+          ) : (
+            <span className="truncate">{track.albumName || "Single"}</span>
+          )}
 
           <span className="shrink-0">
             {minutes}:{seconds}
