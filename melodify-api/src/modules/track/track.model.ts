@@ -22,6 +22,22 @@ export interface ITrack {
 
   downloadAllowed: boolean;
 
+  /*
+  |--------------------------------------------------------------------------
+  | Discover catalog flag
+  |--------------------------------------------------------------------------
+  |
+  | true
+  | → normal Discover Music section me show ho sakta hai
+  |
+  | false
+  | → recommendation/search ke liye DB me available rahega
+  |   but Discover Music me show nahi hoga
+  |
+  */
+
+  isDiscoverable: boolean;
+
   lastSyncedAt: Date;
 
   createdAt: Date;
@@ -94,6 +110,29 @@ const trackSchema = new Schema<ITrack>(
       default: false,
     },
 
+    /*
+    |--------------------------------------------------------------------------
+    | Discover Music visibility
+    |--------------------------------------------------------------------------
+    |
+    | Default false intentionally.
+    |
+    | Normal Discover fetch explicitly set karega:
+    |
+    | isDiscoverable = true
+    |
+    | Recommendation-only Jamendo fetch:
+    |
+    | isDiscoverable = false
+    |
+    */
+
+    isDiscoverable: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
     lastSyncedAt: {
       type: Date,
       default: Date.now,
@@ -113,5 +152,23 @@ trackSchema.index(
     unique: true,
   },
 );
+
+/*
+|--------------------------------------------------------------------------
+| Discover query index
+|--------------------------------------------------------------------------
+|
+| Discover Music frequently filter karega:
+|
+| isDiscoverable: true
+|
+| Isliye index useful rahega.
+|
+*/
+
+trackSchema.index({
+  isDiscoverable: 1,
+  lastSyncedAt: -1,
+});
 
 export const Track = mongoose.model<ITrack>("Track", trackSchema);

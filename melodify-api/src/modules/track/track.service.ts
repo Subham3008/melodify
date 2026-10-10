@@ -10,16 +10,43 @@ import type { NormalizedTrack, TrackDTO } from "./track.types.js";
 
 interface DiscoverTracksInput {
   limit?: number;
+
   offset?: number;
+
   search?: string;
+
   artistId?: string;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Discover visibility
+  |--------------------------------------------------------------------------
+  |
+  | true
+  | → normal Discover Music catalog
+  |
+  | false
+  | → recommendation/search fetched track
+  |   MongoDB me rahega but Discover Music me nahi dikhega
+  |
+  */
+
+  isDiscoverable?: boolean;
 }
 
 interface GetTracksInput {
   search?: string;
+
   page?: number;
+
   limit?: number;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Map MongoDB Track -> API DTO
+|--------------------------------------------------------------------------
+*/
 
 const mapTrackToDTO = (track: InstanceType<typeof Track>): TrackDTO => {
   return {
@@ -51,40 +78,143 @@ const mapTrackToDTO = (track: InstanceType<typeof Track>): TrackDTO => {
   };
 };
 
-const saveTracks = async (tracks: NormalizedTrack[]): Promise<void> => {
+/*
+|--------------------------------------------------------------------------
+| Save / upsert tracks
+|--------------------------------------------------------------------------
+|
+| Normal Discover fetch:
+|
+| isDiscoverable = true
+|
+| Recommendation / search-specific fetch:
+|
+| isDiscoverable = false
+|
+*/
+
+const saveTracks = async (
+  tracks: NormalizedTrack[],
+  isDiscoverable = true,
+): Promise<void> => {
   if (tracks.length === 0) {
     return;
   }
 
-  const operations = tracks.map((track) => ({
-    updateOne: {
-      filter: {
-        source: track.source,
+  const now = new Date();
 
-        externalId: track.externalId,
-      },
+  const operations = tracks.map((track) => {
+    const commonFields = {
+      ...track,
 
-      update: {
-        $set: {
-          ...track,
+      lastSyncedAt: now,
+    };
 
-          lastSyncedAt: new Date(),
+    /*
+      |--------------------------------------------------------------------------
+      | Normal Discover fetch
+      |--------------------------------------------------------------------------
+      |
+      | Existing/new track becomes Discover Music eligible.
+      |
+      */
+
+    if (isDiscoverable) {
+      return {
+        updateOne: {
+          filter: {
+            source: track.source,
+
+            externalId: track.externalId,
+          },
+
+          update: {
+            $set: {
+              ...commonFields,
+
+              isDiscoverable: true,
+            },
+          },
+
+          upsert: true,
         },
-      },
+      };
+    }
 
-      upsert: true,
-    },
-  }));
+    /*
+      |--------------------------------------------------------------------------
+      | Non-Discover fetch
+      |--------------------------------------------------------------------------
+      |
+      | Used by:
+      |
+      | - recommendations
+      | - Because You Listened To
+      | - search fallback
+      |
+      | IMPORTANT:
+      |
+      | Existing isDiscoverable=true track must stay true.
+      |
+      | false is only set for a brand-new inserted track.
+      |
+      */
+
+    return {
+      updateOne: {
+        filter: {
+          source: track.source,
+
+          externalId: track.externalId,
+        },
+
+        update: {
+          $set: {
+            ...commonFields,
+          },
+
+          $setOnInsert: {
+            isDiscoverable: false,
+          },
+        },
+
+        upsert: true,
+      },
+    };
+  });
 
   await Track.bulkWrite(operations);
 };
 
+/*
+|--------------------------------------------------------------------------
+| Fetch from Jamendo and save in MongoDB
+|--------------------------------------------------------------------------
+*/
+
 export const discoverTracks = async (
   input: DiscoverTracksInput,
 ): Promise<TrackDTO[]> => {
-  const jamendoTracks = await fetchJamendoTracks(input);
+  /*
+  |--------------------------------------------------------------------------
+  | Separate local DB flag from Jamendo API options
+  |--------------------------------------------------------------------------
+  |
+  | Jamendo API does not know what "isDiscoverable" means.
+  |
+  */
 
-  await saveTracks(jamendoTracks);
+  const { isDiscoverable = true, ...jamendoInput } = input;
+
+  const jamendoTracks = await fetchJamendoTracks(jamendoInput);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Persist with correct visibility
+  |--------------------------------------------------------------------------
+  */
+
+  await saveTracks(jamendoTracks, isDiscoverable);
 
   const externalIds = jamendoTracks.map((track) => track.externalId);
 
@@ -96,6 +226,12 @@ export const discoverTracks = async (
     },
   });
 
+  /*
+  |--------------------------------------------------------------------------
+  | Preserve Jamendo response order
+  |--------------------------------------------------------------------------
+  */
+
   const trackMap = new Map(
     storedTracks.map((track) => [track.externalId, track]),
   );
@@ -105,6 +241,12 @@ export const discoverTracks = async (
     .filter((track): track is NonNullable<typeof track> => Boolean(track))
     .map(mapTrackToDTO);
 };
+
+/*
+|--------------------------------------------------------------------------
+| Get catalog / search tracks
+|--------------------------------------------------------------------------
+*/
 
 export const getTracks = async ({
   search,
@@ -123,8 +265,19 @@ export const getTracks = async ({
 
   /*
   |--------------------------------------------------------------------------
-  | Search query
+  | Search mode
   |--------------------------------------------------------------------------
+  |
+  | Search is intentionally NOT restricted to:
+  |
+  | isDiscoverable = true
+  |
+  | This means user can search:
+  |
+  | normal catalog tracks
+  | recommendation-fetched tracks
+  | Because You Listened To tracks
+  |
   */
 
   if (normalizedSearch) {
@@ -148,11 +301,25 @@ export const getTracks = async ({
         albumName: regex,
       },
     ];
+  } else {
+    /*
+    |--------------------------------------------------------------------------
+    | Normal Discover Music
+    |--------------------------------------------------------------------------
+    |
+    | THIS IS THE IMPORTANT FIX.
+    |
+    | Recommendation-specific tracks must NOT enter
+    | the shared Discover Music catalog.
+    |
+    */
+
+    query.isDiscoverable = true;
   }
 
   /*
   |--------------------------------------------------------------------------
-  | First search MongoDB
+  | First query MongoDB
   |--------------------------------------------------------------------------
   */
 
@@ -165,7 +332,7 @@ export const getTracks = async ({
 
   /*
   |--------------------------------------------------------------------------
-  | DB result found
+  | MongoDB result found
   |--------------------------------------------------------------------------
   */
 
@@ -175,26 +342,50 @@ export const getTracks = async ({
 
   /*
   |--------------------------------------------------------------------------
-  | No search term
+  | Normal Discover fallback
   |--------------------------------------------------------------------------
   |
-  | Normal catalog request me DB empty hai to simply []
-  | return karenge.
+  | There may be no isDiscoverable=true records yet because:
   |
-  | Jamendo fallback sirf actual search ke liye use ho raha hai.
+  | 1. field was newly introduced
+  | 2. old database records don't have it
+  | 3. fresh database
+  |
+  | In that situation fetch normal popular Jamendo catalog
+  | and explicitly mark it discoverable.
   |
   */
 
   if (!normalizedSearch) {
-    return [];
+    return discoverTracks({
+      limit: safeLimit,
+
+      offset: skip,
+
+      isDiscoverable: true,
+    });
   }
 
   /*
   |--------------------------------------------------------------------------
-  | Search not found in DB
+  | Search fallback
   |--------------------------------------------------------------------------
   |
-  | Ab Jamendo ko search karenge.
+  | Search wasn't found in MongoDB.
+  |
+  | Ask Jamendo.
+  |
+  | IMPORTANT:
+  |
+  | Search results must NOT automatically become
+  | part of Discover Music.
+  |
+  | Example:
+  |
+  | User searches "Cole Powell"
+  |
+  | We don't want 20 Cole Powell tracks suddenly appearing
+  | in everybody's Discover Music section.
   |
   */
 
@@ -204,8 +395,16 @@ export const getTracks = async ({
     limit: safeLimit,
 
     offset: skip,
+
+    isDiscoverable: false,
   });
 };
+
+/*
+|--------------------------------------------------------------------------
+| Get single track
+|--------------------------------------------------------------------------
+*/
 
 export const getTrackById = async (trackId: string): Promise<TrackDTO> => {
   if (!mongoose.isValidObjectId(trackId)) {
@@ -220,6 +419,12 @@ export const getTrackById = async (trackId: string): Promise<TrackDTO> => {
 
   return mapTrackToDTO(track);
 };
+
+/*
+|--------------------------------------------------------------------------
+| Get multiple tracks by IDs
+|--------------------------------------------------------------------------
+*/
 
 export const getTracksByIds = async (
   trackIds: string[],
@@ -241,15 +446,13 @@ export const getTracksByIds = async (
   });
 
   /*
-    |--------------------------------------------------------------------------
-    | Preserve like order
-    |--------------------------------------------------------------------------
-    |
-    | MongoDB $in original array order guarantee nahi karta.
-    |
-    | Isliye map bana ke original trackIds order restore kar rahe hain.
-    |
-    */
+  |--------------------------------------------------------------------------
+  | Preserve input order
+  |--------------------------------------------------------------------------
+  |
+  | MongoDB $in does not guarantee original array order.
+  |
+  */
 
   const trackMap = new Map(tracks.map((track) => [String(track._id), track]));
 

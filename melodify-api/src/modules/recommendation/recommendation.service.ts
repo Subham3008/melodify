@@ -673,6 +673,8 @@ export const getRecommendations = async (
           limit: JAMENDO_TRACKS_PER_ARTIST,
 
           offset: 0,
+
+          isDiscoverable: false,
         });
       } catch (error) {
         logger.warn(
@@ -866,4 +868,218 @@ export const getRecommendations = async (
   const rankedTrackIds = diversifiedTracks.map((track) => String(track._id));
 
   return getTracksByIds(rankedTrackIds);
+};
+
+/*
+|--------------------------------------------------------------------------
+| Because You Listened To
+|--------------------------------------------------------------------------
+|
+| User ke latest meaningful playback ko seed track banata hai.
+|
+| Example:
+|
+| User listened:
+| Alone - Color Out
+|
+| Result:
+|
+| Because You Listened To "Alone"
+| → same artist ke fresh tracks
+|
+*/
+
+export interface BecauseYouListenedToResult {
+  seedTrack: TrackDTO;
+  tracks: TrackDTO[];
+}
+
+export const getBecauseYouListenedTo = async (
+  userId: string,
+  limit = 6,
+): Promise<BecauseYouListenedToResult | null> => {
+  if (!mongoose.isValidObjectId(userId)) {
+    return null;
+  }
+
+  const safeLimit = Math.min(Math.max(limit, 1), 10);
+
+  /*
+    |--------------------------------------------------------------------------
+    | Find latest meaningful playback
+    |--------------------------------------------------------------------------
+    |
+    | SKIPPED track ko seed nahi banana.
+    |
+    */
+
+  const seedEvent = await PlaybackEvent.findOne({
+    userId,
+
+    eventType: {
+      $in: ["PLAYED", "COMPLETED"],
+    },
+  })
+    .sort({
+      createdAt: -1,
+    })
+    .select("trackId")
+    .lean();
+
+  if (!seedEvent) {
+    return null;
+  }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Get seed track
+    |--------------------------------------------------------------------------
+    */
+
+  const seedTracks = await getTracksByIds([String(seedEvent.trackId)]);
+
+  const seedTrack = seedTracks[0];
+
+  if (!seedTrack) {
+    return null;
+  }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Recently played tracks
+    |--------------------------------------------------------------------------
+    */
+
+  const recentEvents = await PlaybackEvent.find({
+    userId,
+  })
+    .sort({
+      createdAt: -1,
+    })
+    .limit(15)
+    .select("trackId")
+    .lean();
+
+  const recentTrackIds = recentEvents.map((event) => event.trackId);
+
+  /*
+    |--------------------------------------------------------------------------
+    | Negative recommendation tracks
+    |--------------------------------------------------------------------------
+    */
+
+  const profile = await RecommendationProfile.findOne({
+    userId,
+  })
+    .select("tracks")
+    .lean();
+
+  const negativeTrackIds = profile
+    ? (profile.tracks as ITrackAffinity[])
+        .filter((track) => track.score < 0)
+        .map((track) => track.trackId)
+    : [];
+
+  /*
+    |--------------------------------------------------------------------------
+    | Exclusions
+    |--------------------------------------------------------------------------
+    */
+
+  const excludedTrackIds = [...recentTrackIds, ...negativeTrackIds];
+
+  /*
+    |--------------------------------------------------------------------------
+    | Find same artist tracks from MongoDB
+    |--------------------------------------------------------------------------
+    */
+
+  let candidates = await Track.find({
+    artistId: seedTrack.artistId,
+
+    _id: {
+      $nin: excludedTrackIds,
+    },
+  })
+    .sort({
+      lastSyncedAt: -1,
+    })
+    .limit(safeLimit)
+    .lean();
+
+  /*
+    |--------------------------------------------------------------------------
+    | Jamendo fallback
+    |--------------------------------------------------------------------------
+    |
+    | MongoDB me same artist ke enough tracks nahi hain:
+    |
+    | Jamendo
+    | ↓
+    | fetch same artist
+    | ↓
+    | discoverTracks saves to MongoDB
+    | ↓
+    | query again
+    |
+    */
+
+  if (candidates.length < safeLimit) {
+    try {
+      await discoverTracks({
+        artistId: seedTrack.artistId,
+
+        limit: 20,
+
+        offset: 0,
+
+        isDiscoverable: false,
+      });
+    } catch (error) {
+      logger.warn(
+        {
+          err: error,
+
+          userId,
+
+          artistId: seedTrack.artistId,
+        },
+
+        "Unable to refresh Because You Listened To tracks",
+      );
+    }
+
+    /*
+      |--------------------------------------------------------------------------
+      | Read again after Jamendo sync
+      |--------------------------------------------------------------------------
+      */
+
+    candidates = await Track.find({
+      artistId: seedTrack.artistId,
+
+      _id: {
+        $nin: excludedTrackIds,
+      },
+    })
+      .sort({
+        lastSyncedAt: -1,
+      })
+      .limit(safeLimit)
+      .lean();
+  }
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const candidateIds = candidates.map((track) => String(track._id));
+
+  const tracks = await getTracksByIds(candidateIds);
+
+  return {
+    seedTrack,
+
+    tracks,
+  };
 };
