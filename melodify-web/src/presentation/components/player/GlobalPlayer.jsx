@@ -5,6 +5,7 @@ import { usePlayerStore } from "@/presentation/stores/player.store";
 import { useAuthStore } from "@/presentation/stores/auth.store";
 import { sendPlaybackEvent } from "@/application/history/history.usecases";
 import { useHistoryStore } from "@/presentation/stores/history.store";
+import { useRecommendationStore } from "@/presentation/stores/recommendation.store";
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds)) {
@@ -48,6 +49,10 @@ export default function GlobalPlayer() {
     (state) => state.pushRecentlyPlayed,
   );
 
+  const markRecommendationsStale = useRecommendationStore(
+    (state) => state.markRecommendationsStale,
+  );
+
   const [currentTime, setCurrentTime] = useState(0);
 
   const [duration, setDuration] = useState(0);
@@ -83,6 +88,26 @@ export default function GlobalPlayer() {
       if (eventType === "PLAYED") {
         pushRecentlyPlayed(track, playbackEvent?.createdAt);
       }
+
+      /*
+      |--------------------------------------------------------------------------
+      | Mark recommendations stale
+      |--------------------------------------------------------------------------
+      |
+      | Backend:
+      |
+      | PlaybackEvent
+      | → BullMQ
+      | → RecommendationProfile rebuild
+      |
+      | Frontend:
+      |
+      | We only mark recommendations as stale.
+      | RecommendedForYou decides when to refetch.
+      |
+      */
+
+      markRecommendationsStale();
     } catch (error) {
       /*
       |--------------------------------------------------------------------------
