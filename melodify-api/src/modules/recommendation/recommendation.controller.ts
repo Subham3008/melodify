@@ -8,6 +8,8 @@ import {
   getMoreFromLikedArtist,
 } from "./recommendation.service.js";
 
+import { getPopularTracks } from "./popular.service.js";
+
 /*
 |--------------------------------------------------------------------------
 | Recommended For You
@@ -149,5 +151,26 @@ export const getMoreFromLikedArtistController = async (
 
       tracks: result.tracks,
     },
+  });
+};
+
+export const getPopularTracksController = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const requestedLimit = Number(req.query.limit ?? 10);
+
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.min(Math.max(Math.floor(requestedLimit), 1), 20)
+    : 10;
+
+  const tracks = await getPopularTracks(limit);
+
+  res.status(200).json({
+    success: true,
+
+    count: tracks.length,
+
+    data: tracks,
   });
 };

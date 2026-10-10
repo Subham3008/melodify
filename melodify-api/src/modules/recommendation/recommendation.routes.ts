@@ -8,6 +8,7 @@ import {
   getRecommendationsController,
   getBecauseYouListenedToController,
   getMoreFromLikedArtistController,
+  getPopularTracksController,
 } from "./recommendation.controller.js";
 
 const router = Router();
@@ -22,6 +23,8 @@ const router = Router();
 */
 
 router.use(requireAuth);
+
+router.get("/popular", asyncHandler(getPopularTracksController));
 
 /*
 |--------------------------------------------------------------------------
