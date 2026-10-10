@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
-
 import { discoverTracks, getTrackById, getTracks } from "./track.service.js";
+import { searchAll } from "./search.service.js";
 
 export const discoverTracksController = async (
   req: Request,
@@ -51,6 +51,55 @@ export const getTracksController = async (
     count: tracks.length,
 
     data: tracks,
+  });
+};
+
+/*
+|--------------------------------------------------------------------------
+| Universal search
+|--------------------------------------------------------------------------
+*/
+
+export const searchTracksAndArtistsController = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
+
+  const page = Number(req.query.page) || 1;
+
+  const trackLimit = Number(req.query.trackLimit) || 20;
+
+  const artistLimit = Number(req.query.artistLimit) || 6;
+
+  if (!query) {
+    res.status(200).json({
+      success: true,
+
+      data: {
+        artists: [],
+
+        tracks: [],
+      },
+    });
+
+    return;
+  }
+
+  const result = await searchAll({
+    query,
+
+    page,
+
+    trackLimit,
+
+    artistLimit,
+  });
+
+  res.status(200).json({
+    success: true,
+
+    data: result,
   });
 };
 

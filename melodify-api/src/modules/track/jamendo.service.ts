@@ -19,7 +19,18 @@ interface GetJamendoTracksOptions {
 
 /*
 |--------------------------------------------------------------------------
-| Artist types
+| Artist search options
+|--------------------------------------------------------------------------
+*/
+
+interface SearchJamendoArtistsOptions {
+  search: string;
+  limit?: number;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Artist API types
 |--------------------------------------------------------------------------
 */
 
@@ -27,6 +38,7 @@ interface JamendoArtistApiResult {
   id: string;
   name: string;
   image: string;
+
   website?: string;
   shorturl?: string;
   shareurl?: string;
@@ -37,6 +49,7 @@ interface JamendoArtistsResponse {
     status: string;
     code: number;
     error_message: string;
+
     warnings?: string;
     results_count?: number;
   };
@@ -46,7 +59,9 @@ interface JamendoArtistsResponse {
 
 export interface JamendoArtist {
   artistId: string;
+
   artistName: string;
+
   imageUrl: string;
 }
 
@@ -55,10 +70,10 @@ export interface JamendoArtist {
 | Small in-memory artist cache
 |--------------------------------------------------------------------------
 |
-| Artist image/name Jamendo se har request par dobara fetch karne ki
-| zarurat nahi hai.
+| Artist detail page / Popular Artists ke liye same artist metadata
+| baar-baar Jamendo se fetch nahi karna.
 |
-| Server restart ke baad cache reset ho jayega.
+| Server restart ke baad cache automatically reset ho jayega.
 |
 */
 
@@ -68,6 +83,7 @@ const artistCache = new Map<
   string,
   {
     artist: JamendoArtist;
+
     expiresAt: number;
   }
 >();
@@ -102,9 +118,21 @@ export const fetchJamendoTracks = async ({
     imagesize: "300",
   });
 
+  /*
+    |--------------------------------------------------------------------------
+    | Artist-specific tracks
+    |--------------------------------------------------------------------------
+    */
+
   if (artistId?.trim()) {
     params.set("artist_id", artistId.trim());
   }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Search OR popularity order
+    |--------------------------------------------------------------------------
+    */
 
   if (search?.trim()) {
     params.set("search", search.trim());
@@ -180,8 +208,8 @@ export const fetchJamendoTracks = async ({
 |
 | Used by:
 |
-| Popular Artists
-| Artist detail page
+| - Popular Artists
+| - Artist detail page
 |
 */
 
@@ -205,6 +233,12 @@ export const fetchJamendoArtistById = async (
   if (cached && cached.expiresAt > Date.now()) {
     return cached.artist;
   }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Jamendo artist request
+    |--------------------------------------------------------------------------
+    */
 
   const params = new URLSearchParams({
     client_id: env.JAMENDO_CLIENT_ID,
@@ -251,7 +285,7 @@ export const fetchJamendoArtistById = async (
 
     /*
       |--------------------------------------------------------------------------
-      | Cache artist
+      | Cache artist metadata
       |--------------------------------------------------------------------------
       */
 
@@ -268,5 +302,118 @@ export const fetchJamendoArtistById = async (
     }
 
     throw new ApiError(502, "Unable to communicate with Jamendo artist API");
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| Search Jamendo artists
+|--------------------------------------------------------------------------
+|
+| Universal search ke liye.
+|
+| Example:
+|
+| search = "cole"
+|
+| ↓
+|
+| Cole Powell
+| Cole Another Artist
+|
+*/
+
+export const searchJamendoArtists = async ({
+  search,
+  limit = 6,
+}: SearchJamendoArtistsOptions): Promise<JamendoArtist[]> => {
+  const normalizedSearch = search.trim();
+
+  if (!normalizedSearch) {
+    return [];
+  }
+
+  const safeLimit = Math.min(Math.max(limit, 1), 20);
+
+  /*
+    |--------------------------------------------------------------------------
+    | Jamendo artist search params
+    |--------------------------------------------------------------------------
+    */
+
+  const params = new URLSearchParams({
+    client_id: env.JAMENDO_CLIENT_ID,
+
+    format: "json",
+
+    /*
+        |--------------------------------------------------------------------------
+        | Search artist by name
+        |--------------------------------------------------------------------------
+        */
+
+    namesearch: normalizedSearch,
+
+    limit: String(safeLimit),
+
+    /*
+        |--------------------------------------------------------------------------
+        | Only useful artist results
+        |--------------------------------------------------------------------------
+        */
+
+    hasimage: "true",
+
+    /*
+        |--------------------------------------------------------------------------
+        | Better ordering
+        |--------------------------------------------------------------------------
+        */
+
+    order: "popularity_total",
+  });
+
+  const url = `${env.JAMENDO_BASE_URL}/artists/?${params.toString()}`;
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new ApiError(
+        502,
+        `Jamendo artist search failed with status ${response.status}`,
+      );
+    }
+
+    const data = (await response.json()) as JamendoArtistsResponse;
+
+    if (data.headers.status !== "success") {
+      throw new ApiError(
+        502,
+        data.headers.error_message || "Jamendo artist search returned an error",
+      );
+    }
+
+    /*
+      |--------------------------------------------------------------------------
+      | Normalize artist results
+      |--------------------------------------------------------------------------
+      */
+
+    return data.results.map(
+      (artist): JamendoArtist => ({
+        artistId: artist.id,
+
+        artistName: artist.name,
+
+        imageUrl: artist.image || "",
+      }),
+    );
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError(502, "Unable to search Jamendo artists");
   }
 };
