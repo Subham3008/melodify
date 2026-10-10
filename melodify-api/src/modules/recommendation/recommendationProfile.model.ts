@@ -10,6 +10,9 @@ export interface IArtistAffinity {
   completedCount: number;
   skippedCount: number;
 
+  likedTrackCount: number;
+  playlistTrackCount: number;
+
   lastListenedAt: Date;
 }
 
@@ -21,6 +24,9 @@ export interface ITrackAffinity {
   playCount: number;
   completedCount: number;
   skippedCount: number;
+
+  liked: boolean;
+  playlistCount: number;
 
   lastListenedAt: Date;
 }
@@ -74,6 +80,16 @@ const artistAffinitySchema = new Schema<IArtistAffinity>(
       type: Date,
       required: true,
     },
+
+    likedTrackCount: {
+      type: Number,
+      default: 0,
+    },
+
+    playlistTrackCount: {
+      type: Number,
+      default: 0,
+    },
   },
 
   {
@@ -112,6 +128,16 @@ const trackAffinitySchema = new Schema<ITrackAffinity>(
     lastListenedAt: {
       type: Date,
       required: true,
+    },
+
+    liked: {
+      type: Boolean,
+      default: false,
+    },
+
+    playlistCount: {
+      type: Number,
+      default: 0,
     },
   },
 

@@ -8,6 +8,8 @@ import { getTracksByIds } from "../track/track.service.js";
 
 import { ApiError } from "../../utils/ApiError.js";
 
+import { enqueueRecommendationRefresh } from "../../queues/recommendation.queue.js";
+
 export const likeTrack = async (
   userId: string,
   trackId: string,
@@ -25,33 +27,46 @@ export const likeTrack = async (
   }
 
   /*
-    |--------------------------------------------------------------------------
-    | Upsert
-    |--------------------------------------------------------------------------
-    |
-    | Already liked → nothing duplicate
-    | Not liked     → create like
-    |
-    */
+   |--------------------------------------------------------------------------
+   | Upsert
+   |--------------------------------------------------------------------------
+   |
+   | Already liked → nothing duplicate
+   | Not liked     → create like
+   |
+   */
 
-  await Like.findOneAndUpdate(
-    {
-      userId,
-      trackId,
-    },
+  const existingLike = await Like.findOne({
+    userId,
+    trackId,
+  });
 
-    {
-      $setOnInsert: {
-        userId,
-        trackId,
-      },
-    },
+  if (existingLike) {
+    return;
+  }
 
-    {
-      upsert: true,
-      new: true,
-    },
-  );
+  await Like.create({
+    userId,
+    trackId,
+  });
+
+  /*
+   |--------------------------------------------------------------------------
+   | Recommendation refresh
+   |--------------------------------------------------------------------------
+   |
+   | Like is a strong positive recommendation signal.
+   | Heavy recommendation calculation is NOT done here.
+   |
+   | We only enqueue a BullMQ background job.
+   |
+   */
+
+  await enqueueRecommendationRefresh({
+    userId,
+    trackId,
+    reason: "LIKE_ADDED",
+  });
 };
 
 export const unlikeTrack = async (
@@ -62,10 +77,30 @@ export const unlikeTrack = async (
     throw new ApiError(400, "Invalid track id");
   }
 
-  await Like.deleteOne({
+  const result = await Like.deleteOne({
     userId,
     trackId,
   });
+
+  /*
+   |--------------------------------------------------------------------------
+   | Recommendation refresh
+   |--------------------------------------------------------------------------
+   |
+   | Only enqueue when an actual like was deleted.
+   |
+   | If user clicks unlike on an already-unliked track,
+   | there is no need to rebuild recommendation profile.
+   |
+   */
+
+  if (result.deletedCount > 0) {
+    await enqueueRecommendationRefresh({
+      userId,
+      trackId,
+      reason: "LIKE_REMOVED",
+    });
+  }
 };
 
 export const getLikedTracks = async (userId: string) => {

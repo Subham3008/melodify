@@ -8,6 +8,8 @@ import { getTracksByIds } from "../track/track.service.js";
 
 import { ApiError } from "../../utils/ApiError.js";
 
+import { enqueueRecommendationRefresh } from "../../queues/recommendation.queue.js";
+
 interface CreatePlaylistInput {
   name: string;
   description?: string;
@@ -113,10 +115,10 @@ export const addTrackToPlaylist = async (
   }
 
   /*
-    |--------------------------------------------------------------------------
-    | Verify playlist ownership
-    |--------------------------------------------------------------------------
-    */
+   |--------------------------------------------------------------------------
+   | Verify playlist ownership
+   |--------------------------------------------------------------------------
+   */
 
   const playlistExists = await Playlist.exists({
     _id: playlistId,
@@ -128,10 +130,10 @@ export const addTrackToPlaylist = async (
   }
 
   /*
-    |--------------------------------------------------------------------------
-    | Verify track
-    |--------------------------------------------------------------------------
-    */
+   |--------------------------------------------------------------------------
+   | Verify track
+   |--------------------------------------------------------------------------
+   */
 
   const trackExists = await Track.exists({
     _id: trackId,
@@ -142,16 +144,16 @@ export const addTrackToPlaylist = async (
   }
 
   /*
-    |--------------------------------------------------------------------------
-    | Atomic add
-    |--------------------------------------------------------------------------
-    |
-    | tracks.trackId != trackId
-    |
-    | means:
-    | same track dubara add nahi hoga.
-    |
-    */
+   |--------------------------------------------------------------------------
+   | Atomic add
+   |--------------------------------------------------------------------------
+   |
+   | tracks.trackId != trackId
+   |
+   | means:
+   | same track dubara add nahi hoga.
+   |
+   */
 
   const result = await Playlist.updateOne(
     {
@@ -174,11 +176,33 @@ export const addTrackToPlaylist = async (
     },
   );
 
+  const added = result.modifiedCount > 0;
+
+  /*
+   |--------------------------------------------------------------------------
+   | Recommendation refresh
+   |--------------------------------------------------------------------------
+   |
+   | Playlist add is a positive recommendation signal.
+   |
+   | Only enqueue when track was actually added.
+   |
+   */
+
+  if (added) {
+    await enqueueRecommendationRefresh({
+      userId,
+      playlistId,
+      trackId,
+      reason: "PLAYLIST_TRACK_ADDED",
+    });
+  }
+
   return {
     playlistId,
     trackId,
 
-    added: result.modifiedCount > 0,
+    added,
   };
 };
 
@@ -218,11 +242,32 @@ export const removeTrackFromPlaylist = async (
     },
   );
 
+  const removed = result.modifiedCount > 0;
+
+  /*
+     |--------------------------------------------------------------------------
+     | Recommendation refresh
+     |--------------------------------------------------------------------------
+     |
+     | Only enqueue when a track was
+     | actually removed.
+     |
+     */
+
+  if (removed) {
+    await enqueueRecommendationRefresh({
+      userId,
+      playlistId,
+      trackId,
+      reason: "PLAYLIST_TRACK_REMOVED",
+    });
+  }
+
   return {
     playlistId,
     trackId,
 
-    removed: result.modifiedCount > 0,
+    removed,
   };
 };
 
@@ -283,5 +328,24 @@ export const deletePlaylist = async (userId: string, playlistId: string) => {
 
   if (!playlist) {
     throw new ApiError(404, "Playlist not found");
+  }
+
+  /*
+   |--------------------------------------------------------------------------
+   | Recommendation refresh
+   |--------------------------------------------------------------------------
+   |
+   | Agar deleted playlist me tracks the,
+   | to unke playlist signals recommendation
+   | profile se remove hone chahiye.
+   |
+   */
+
+  if (playlist.tracks.length > 0) {
+    await enqueueRecommendationRefresh({
+      userId,
+      playlistId,
+      reason: "PLAYLIST_DELETED",
+    });
   }
 };

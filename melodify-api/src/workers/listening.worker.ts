@@ -9,6 +9,11 @@ import {
   type ListeningEventJobData,
 } from "../queues/listening.queue.js";
 
+import {
+  RECOMMENDATION_QUEUE_NAME,
+  type RecommendationRefreshJobData,
+} from "../queues/recommendation.queue.js";
+
 import { rebuildRecommendationProfile } from "../modules/recommendation/recommendation.service.js";
 
 import { logger } from "../utils/logger.js";
@@ -16,9 +21,20 @@ import { logger } from "../utils/logger.js";
 const startWorker = async (): Promise<void> => {
   await connectDatabase();
 
-  const connection = createRedisConnection(null);
+  /*
+  |--------------------------------------------------------------------------
+  | Listening event worker
+  |--------------------------------------------------------------------------
+  |
+  | Handles:
+  |
+  | PLAYED
+  | COMPLETED
+  | SKIPPED
+  |
+  */
 
-  const worker = new Worker<ListeningEventJobData>(
+  const listeningWorker = new Worker<ListeningEventJobData>(
     LISTENING_QUEUE_NAME,
 
     async (job) => {
@@ -26,36 +42,130 @@ const startWorker = async (): Promise<void> => {
     },
 
     {
-      connection,
+      connection: createRedisConnection(null),
 
       concurrency: 5,
     },
   );
 
-  worker.on("completed", (job) => {
-    logger.info(
-      {
-        jobId: job.id,
-        userId: job.data.userId,
-      },
+  listeningWorker.on(
+    "completed",
 
-      "Listening event processed",
-    );
-  });
+    (job) => {
+      logger.info(
+        {
+          jobId: job.id,
 
-  worker.on("failed", (job, error) => {
-    logger.error(
-      {
-        jobId: job?.id,
+          userId: job.data.userId,
 
-        err: error,
-      },
+          eventType: job.data.eventType,
 
-      "Listening event job failed",
-    );
-  });
+          trackId: job.data.trackId,
+        },
+
+        "Listening event processed",
+      );
+    },
+  );
+
+  listeningWorker.on(
+    "failed",
+
+    (job, error) => {
+      logger.error(
+        {
+          jobId: job?.id,
+
+          userId: job?.data.userId,
+
+          err: error,
+        },
+
+        "Listening event job failed",
+      );
+    },
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Recommendation refresh worker
+  |--------------------------------------------------------------------------
+  |
+  | Handles stronger recommendation signals:
+  |
+  | LIKE_ADDED
+  | LIKE_REMOVED
+  | PLAYLIST_TRACK_ADDED
+  | PLAYLIST_TRACK_REMOVED
+  | PLAYLIST_DELETED
+  |
+  | Like / playlist API does NOT calculate recommendations directly.
+  |
+  | It only adds a BullMQ job.
+  |
+  | Worker rebuilds the recommendation profile asynchronously.
+  |
+  */
+
+  const recommendationWorker = new Worker<RecommendationRefreshJobData>(
+    RECOMMENDATION_QUEUE_NAME,
+
+    async (job) => {
+      await rebuildRecommendationProfile(job.data.userId);
+    },
+
+    {
+      connection: createRedisConnection(null),
+
+      concurrency: 5,
+    },
+  );
+
+  recommendationWorker.on(
+    "completed",
+
+    (job) => {
+      logger.info(
+        {
+          jobId: job.id,
+
+          userId: job.data.userId,
+
+          reason: job.data.reason,
+
+          trackId: job.data.trackId,
+
+          playlistId: job.data.playlistId,
+        },
+
+        "Recommendation profile refresh processed",
+      );
+    },
+  );
+
+  recommendationWorker.on(
+    "failed",
+
+    (job, error) => {
+      logger.error(
+        {
+          jobId: job?.id,
+
+          userId: job?.data.userId,
+
+          reason: job?.data.reason,
+
+          err: error,
+        },
+
+        "Recommendation profile refresh job failed",
+      );
+    },
+  );
 
   logger.info("Listening worker started");
+
+  logger.info("Recommendation refresh worker started");
 };
 
 startWorker().catch((error) => {
@@ -64,7 +174,7 @@ startWorker().catch((error) => {
       err: error,
     },
 
-    "Failed to start listening worker",
+    "Failed to start recommendation workers",
   );
 
   process.exit(1);
