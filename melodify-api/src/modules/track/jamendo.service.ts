@@ -4,12 +4,79 @@ import { ApiError } from "../../utils/ApiError.js";
 
 import type { JamendoTracksResponse, NormalizedTrack } from "./track.types.js";
 
+/*
+|--------------------------------------------------------------------------
+| Track options
+|--------------------------------------------------------------------------
+*/
+
 interface GetJamendoTracksOptions {
   limit?: number;
   offset?: number;
   search?: string;
   artistId?: string;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Artist types
+|--------------------------------------------------------------------------
+*/
+
+interface JamendoArtistApiResult {
+  id: string;
+  name: string;
+  image: string;
+  website?: string;
+  shorturl?: string;
+  shareurl?: string;
+}
+
+interface JamendoArtistsResponse {
+  headers: {
+    status: string;
+    code: number;
+    error_message: string;
+    warnings?: string;
+    results_count?: number;
+  };
+
+  results: JamendoArtistApiResult[];
+}
+
+export interface JamendoArtist {
+  artistId: string;
+  artistName: string;
+  imageUrl: string;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Small in-memory artist cache
+|--------------------------------------------------------------------------
+|
+| Artist image/name Jamendo se har request par dobara fetch karne ki
+| zarurat nahi hai.
+|
+| Server restart ke baad cache reset ho jayega.
+|
+*/
+
+const ARTIST_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+const artistCache = new Map<
+  string,
+  {
+    artist: JamendoArtist;
+    expiresAt: number;
+  }
+>();
+
+/*
+|--------------------------------------------------------------------------
+| Fetch Jamendo tracks
+|--------------------------------------------------------------------------
+*/
 
 export const fetchJamendoTracks = async ({
   limit = 20,
@@ -103,5 +170,103 @@ export const fetchJamendoTracks = async ({
     }
 
     throw new ApiError(502, "Unable to communicate with Jamendo");
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| Fetch single Jamendo artist
+|--------------------------------------------------------------------------
+|
+| Used by:
+|
+| Popular Artists
+| Artist detail page
+|
+*/
+
+export const fetchJamendoArtistById = async (
+  artistId: string,
+): Promise<JamendoArtist | null> => {
+  const normalizedArtistId = artistId.trim();
+
+  if (!normalizedArtistId) {
+    return null;
+  }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Cache first
+    |--------------------------------------------------------------------------
+    */
+
+  const cached = artistCache.get(normalizedArtistId);
+
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.artist;
+  }
+
+  const params = new URLSearchParams({
+    client_id: env.JAMENDO_CLIENT_ID,
+
+    format: "json",
+
+    id: normalizedArtistId,
+  });
+
+  const url = `${env.JAMENDO_BASE_URL}/artists/?${params.toString()}`;
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new ApiError(
+        502,
+        `Jamendo artist API request failed with status ${response.status}`,
+      );
+    }
+
+    const data = (await response.json()) as JamendoArtistsResponse;
+
+    if (data.headers.status !== "success") {
+      throw new ApiError(
+        502,
+        data.headers.error_message || "Jamendo artist API returned an error",
+      );
+    }
+
+    const result = data.results[0];
+
+    if (!result) {
+      return null;
+    }
+
+    const artist: JamendoArtist = {
+      artistId: result.id,
+
+      artistName: result.name,
+
+      imageUrl: result.image || "",
+    };
+
+    /*
+      |--------------------------------------------------------------------------
+      | Cache artist
+      |--------------------------------------------------------------------------
+      */
+
+    artistCache.set(normalizedArtistId, {
+      artist,
+
+      expiresAt: Date.now() + ARTIST_CACHE_TTL_MS,
+    });
+
+    return artist;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError(502, "Unable to communicate with Jamendo artist API");
   }
 };

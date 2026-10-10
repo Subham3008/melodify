@@ -9,6 +9,8 @@ import {
   getBecauseYouListenedToController,
   getMoreFromLikedArtistController,
   getPopularTracksController,
+  getPopularArtistsController,
+  getArtistDetailsController,
 } from "./recommendation.controller.js";
 
 const router = Router();
@@ -17,32 +19,55 @@ const router = Router();
 |--------------------------------------------------------------------------
 | Authentication
 |--------------------------------------------------------------------------
-|
-| Is router ke saare recommendation endpoints protected hain.
-|
 */
 
 router.use(requireAuth);
 
-router.get("/popular", asyncHandler(getPopularTracksController));
+/*
+|--------------------------------------------------------------------------
+| Global popularity
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  "/popular",
+
+  asyncHandler(getPopularTracksController),
+);
+
+router.get(
+  "/popular-artists",
+
+  asyncHandler(getPopularArtistsController),
+);
 
 /*
 |--------------------------------------------------------------------------
-| Because You Listened To
+| Artist page
 |--------------------------------------------------------------------------
-|
-| Important:
-| Specific route ko "/" se pehle rakhna cleaner hai.
-|
+*/
+
+router.get(
+  "/artists/:artistId",
+
+  asyncHandler(getArtistDetailsController),
+);
+
+/*
+|--------------------------------------------------------------------------
+| Personalized recommendations
+|--------------------------------------------------------------------------
 */
 
 router.get(
   "/because-you-listened",
+
   asyncHandler(getBecauseYouListenedToController),
 );
 
 router.get(
   "/more-from-liked-artist",
+
   asyncHandler(getMoreFromLikedArtistController),
 );
 
@@ -52,6 +77,10 @@ router.get(
 |--------------------------------------------------------------------------
 */
 
-router.get("/", asyncHandler(getRecommendationsController));
+router.get(
+  "/",
+
+  asyncHandler(getRecommendationsController),
+);
 
 export default router;
