@@ -12,6 +12,8 @@ import BecauseYouListened from "@/presentation/components/recommendation/Because
 import MoreFromLikedArtist from "@/presentation/components/recommendation/MoreFromLikedArtist";
 import PopularOnMelodify from "@/presentation/components/recommendation/PopularOnMelodify";
 import PopularArtists from "@/presentation/components/artist/PopularArtists";
+import SearchResults from "@/presentation/components/search/SearchResults";
+import { useSearchStore } from "@/presentation/stores/search.store";
 
 export default function HomePage() {
   const searchParams = useSearchParams();
@@ -34,16 +36,66 @@ export default function HomePage() {
 
   const fetchTracks = useTrackStore((state) => state.fetchTracks);
 
+  const clearTrackSearch = useTrackStore((state) => state.clearSearch);
+
+  const universalSearch = useSearchStore((state) => state.search);
+
+  const clearUniversalSearch = useSearchStore((state) => state.clear);
+
   useEffect(() => {
-    if (authLoading || !user) {
+    if (
+      authLoading ||
+      !user
+    ) {
       return;
     }
 
-    fetchTracks({
+    /*
+    |--------------------------------------------------------------------------
+    | Universal search
+    |--------------------------------------------------------------------------
+    */
+
+    if (urlSearchQuery) {
+      void universalSearch({
+        query:
+          urlSearchQuery,
+
+        reset: true,
+      });
+
+      return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Search cleared
+    |--------------------------------------------------------------------------
+    */
+
+    clearUniversalSearch();
+
+    clearTrackSearch();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Restore / fetch normal Discover catalog
+    |--------------------------------------------------------------------------
+    */
+
+    void fetchTracks({
       reset: true,
-      search: urlSearchQuery,
+      search: "",
     });
-  }, [authLoading, user, urlSearchQuery, fetchTracks]);
+  }, [
+    authLoading,
+    user,
+    urlSearchQuery,
+    universalSearch,
+    clearUniversalSearch,
+    clearTrackSearch,
+    fetchTracks,
+  ]);
 
   if (authLoading) {
     return (
@@ -185,55 +237,72 @@ export default function HomePage() {
           </div>
         </div>
 
-        {error && (
-          <div
-            className="
-              mb-6
-              rounded-lg
-              bg-red-950/50
-              px-4
-              py-3
-              text-red-300
-            "
-          >
-            {error}
-          </div>
-        )}
-
-        {tracksLoading && tracks.length === 0 ? (
-          <p className="text-neutral-400">Loading tracks...</p>
+        {urlSearchQuery ? (
+          <SearchResults
+            query={
+              urlSearchQuery
+            }
+          />
         ) : (
-          <TrackGrid tracks={tracks} />
-        )}
+          <>
+            {error && (
+              <div
+                className="
+          mb-6
+          rounded-lg
+          bg-red-950/50
+          px-4
+          py-3
+          text-red-300
+        "
+              >
+                {error}
+              </div>
+            )}
 
-        {tracks.length > 0 && hasMore && (
-          <div
-            className="
-                mt-10
-                flex
-                justify-center
-              "
-          >
-            <button
-              type="button"
-              disabled={tracksLoading}
-              onClick={() => fetchTracks()}
-              className="
-                  rounded-full
-                  border
-                  border-neutral-500
-                  px-7
-                  py-3
-                  font-bold
-                  transition
-                  hover:border-white
-                  disabled:cursor-not-allowed
-                  disabled:opacity-50
-                "
-            >
-              {tracksLoading ? "Loading..." : "Load more"}
-            </button>
-          </div>
+            {tracksLoading &&
+              tracks.length === 0 ? (
+              <p className="text-neutral-400">
+                Loading tracks...
+              </p>
+            ) : (
+              <TrackGrid
+                tracks={tracks}
+              />
+            )}
+
+            {tracks.length >
+              0 &&
+              hasMore && (
+                <div className="mt-10 flex justify-center">
+                  <button
+                    type="button"
+                    disabled={
+                      tracksLoading
+                    }
+                    onClick={() =>
+                      fetchTracks()
+                    }
+                    className="
+                          rounded-full
+                          border
+                          border-neutral-500
+                          px-7
+                          py-3
+                          font-bold
+                          transition
+                          hover:border-white
+                          disabled:cursor-not-allowed
+                          disabled:opacity-50
+                        "
+                  >
+                    {tracksLoading
+                      ? "Loading..."
+                      : "Load more"}
+                  </button>
+                </div>
+              )}
+          </>
         )}
       </section>
     </div>
