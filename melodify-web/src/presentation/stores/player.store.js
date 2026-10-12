@@ -11,94 +11,244 @@ export const usePlayerStore = create((set, get) => ({
 
   volume: 0.8,
 
-  playTrack: (track, queue = []) => {
-    const playerQueue = queue.length > 0 ? queue : [track];
+  /*
+  |--------------------------------------------------------------------------
+  | Play track
+  |--------------------------------------------------------------------------
+  */
 
-    const index = playerQueue.findIndex((item) => item.id === track.id);
+  playTrack: (track, queue = []) => {
+    if (!track) {
+      return;
+    }
+
+    const playerQueue =
+      queue.length > 0
+        ? queue
+        : [track];
+
+    const index =
+      playerQueue.findIndex(
+        (item) =>
+          item.id === track.id,
+      );
 
     set({
       currentTrack: track,
 
-      queue: playerQueue,
+      queue:
+        playerQueue,
 
-      currentIndex: index >= 0 ? index : 0,
+      currentIndex:
+        index >= 0
+          ? index
+          : 0,
 
       isPlaying: true,
     });
   },
 
+  /*
+  |--------------------------------------------------------------------------
+  | Play particular queue item
+  |--------------------------------------------------------------------------
+  |
+  | Right sidebar "Up Next" se kisi particular song par click hoga.
+  |
+  | IMPORTANT:
+  |
+  | Queue replace nahi hogi.
+  | Sirf currentIndex + currentTrack change hoga.
+  |
+  */
+
+  playQueueTrack: (
+    index,
+  ) => {
+    const {
+      queue,
+    } = get();
+
+    if (
+      !Number.isInteger(
+        index,
+      ) ||
+      index < 0 ||
+      index >=
+      queue.length
+    ) {
+      return;
+    }
+
+    const track =
+      queue[index];
+
+    if (!track) {
+      return;
+    }
+
+    set({
+      currentTrack:
+        track,
+
+      currentIndex:
+        index,
+
+      isPlaying:
+        true,
+    });
+  },
+
+  /*
+  |--------------------------------------------------------------------------
+  | Toggle play
+  |--------------------------------------------------------------------------
+  */
+
   togglePlay: () => {
-    const currentTrack = get().currentTrack;
+    const currentTrack =
+      get().currentTrack;
 
     if (!currentTrack) {
       return;
     }
 
     set((state) => ({
-      isPlaying: !state.isPlaying,
+      isPlaying:
+        !state.isPlaying,
     }));
   },
 
+  /*
+  |--------------------------------------------------------------------------
+  | Next
+  |--------------------------------------------------------------------------
+  */
+
   playNext: () => {
-    const { queue, currentIndex } = get();
+    const {
+      queue,
+      currentIndex,
+    } = get();
 
-    const nextIndex = currentIndex + 1;
+    const nextIndex =
+      currentIndex + 1;
 
-    if (nextIndex >= queue.length) {
+    if (
+      nextIndex >=
+      queue.length
+    ) {
       set({
-        isPlaying: false,
+        isPlaying:
+          false,
       });
 
       return;
     }
 
     set({
-      currentTrack: queue[nextIndex],
+      currentTrack:
+        queue[nextIndex],
 
-      currentIndex: nextIndex,
+      currentIndex:
+        nextIndex,
 
-      isPlaying: true,
+      isPlaying:
+        true,
     });
   },
 
+  /*
+  |--------------------------------------------------------------------------
+  | Previous
+  |--------------------------------------------------------------------------
+  */
+
   playPrevious: () => {
-    const { queue, currentIndex } = get();
+    const {
+      queue,
+      currentIndex,
+    } = get();
 
-    const previousIndex = currentIndex - 1;
+    const previousIndex =
+      currentIndex - 1;
 
-    if (previousIndex < 0) {
+    if (
+      previousIndex < 0
+    ) {
       return;
     }
 
     set({
-      currentTrack: queue[previousIndex],
+      currentTrack:
+        queue[
+        previousIndex
+        ],
 
-      currentIndex: previousIndex,
+      currentIndex:
+        previousIndex,
 
-      isPlaying: true,
+      isPlaying:
+        true,
     });
   },
 
-  setIsPlaying: (isPlaying) => {
+  /*
+  |--------------------------------------------------------------------------
+  | Explicit playing state
+  |--------------------------------------------------------------------------
+  */
+
+  setIsPlaying: (
+    isPlaying,
+  ) => {
     set({
       isPlaying,
     });
   },
 
-  setVolume: (volume) => {
-    const safeVolume = Math.min(Math.max(volume, 0), 1);
+  /*
+  |--------------------------------------------------------------------------
+  | Volume
+  |--------------------------------------------------------------------------
+  */
+
+  setVolume: (
+    volume,
+  ) => {
+    const safeVolume =
+      Math.min(
+        Math.max(
+          volume,
+          0,
+        ),
+        1,
+      );
 
     set({
-      volume: safeVolume,
+      volume:
+        safeVolume,
     });
   },
 
+  /*
+  |--------------------------------------------------------------------------
+  | Clear player
+  |--------------------------------------------------------------------------
+  */
+
   clearPlayer: () => {
     set({
-      currentTrack: null,
+      currentTrack:
+        null,
+
       queue: [],
-      currentIndex: -1,
-      isPlaying: false,
+
+      currentIndex:
+        -1,
+
+      isPlaying:
+        false,
     });
   },
 }));

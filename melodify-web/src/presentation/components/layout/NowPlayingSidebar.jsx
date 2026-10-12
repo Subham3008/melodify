@@ -21,7 +21,21 @@ export default function NowPlayingSidebar() {
 
   const currentIndex = usePlayerStore((state) => state.currentIndex);
 
-  const nextTrack = currentIndex >= 0 ? queue[currentIndex + 1] : null;
+  const isPlaying = usePlayerStore((state) => state.isPlaying);
+
+  const playQueueTrack = usePlayerStore((state) => state.playQueueTrack);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Upcoming queue
+  |--------------------------------------------------------------------------
+  |
+  | Current track ke baad jo tracks hain,
+  | wahi Up Next me show honge.
+  |
+  */
+
+  const upcomingTracks = currentIndex >= 0 ? queue.slice(currentIndex + 1) : [];
 
   /*
   |--------------------------------------------------------------------------
@@ -33,15 +47,15 @@ export default function NowPlayingSidebar() {
     return (
       <aside
         className="
-            flex
-            h-full
-            min-h-0
-            flex-col
-            overflow-y-auto
-            rounded-xl
-            bg-[#121212]
-            p-5
-          "
+          flex
+          h-full
+          min-h-0
+          flex-col
+          overflow-y-auto
+          rounded-xl
+          bg-[#121212]
+          p-5
+        "
       >
         <h2
           className="
@@ -118,6 +132,12 @@ export default function NowPlayingSidebar() {
         pr-3
       "
     >
+      {/*
+      |--------------------------------------------------------------------------
+      | Sidebar heading
+      |--------------------------------------------------------------------------
+      */}
+
       <h2
         className="
           mb-5
@@ -129,7 +149,11 @@ export default function NowPlayingSidebar() {
         {currentTrack.title}
       </h2>
 
-      {/* CURRENT SONG IMAGE */}
+      {/*
+      |--------------------------------------------------------------------------
+      | Current song image
+      |--------------------------------------------------------------------------
+      */}
 
       <div
         className="
@@ -165,7 +189,11 @@ export default function NowPlayingSidebar() {
         )}
       </div>
 
-      {/* TRACK INFO */}
+      {/*
+      |--------------------------------------------------------------------------
+      | Track info
+      |--------------------------------------------------------------------------
+      */}
 
       <div className="mt-5">
         <h3
@@ -201,7 +229,11 @@ export default function NowPlayingSidebar() {
         )}
       </div>
 
-      {/* DETAILS CARD */}
+      {/*
+      |--------------------------------------------------------------------------
+      | Track details
+      |--------------------------------------------------------------------------
+      */}
 
       <div
         className="
@@ -263,75 +295,310 @@ export default function NowPlayingSidebar() {
         </div>
       </div>
 
-      {/* NEXT TRACK */}
+      {/*
+      |--------------------------------------------------------------------------
+      | Queue
+      |--------------------------------------------------------------------------
+      */}
 
-      {nextTrack && (
+      <div
+        className="
+          mt-4
+          rounded-xl
+          bg-[#181818]
+          p-3
+        "
+      >
         <div
           className="
-            mt-4
-            rounded-xl
-            bg-[#242424]
-            p-4
+            flex
+            items-center
+            justify-between
+            gap-3
           "
         >
-          <p
+          <h3
+            className="
+              text-sm
+              font-bold
+              text-white
+            "
+          >
+            Up Next
+          </h3>
+
+          <span
             className="
               text-xs
+              text-neutral-500
+            "
+          >
+            {upcomingTracks.length}{" "}
+            {upcomingTracks.length === 1 ? "song" : "songs"}
+          </span>
+        </div>
+
+        {/*
+        |--------------------------------------------------------------------------
+        | Current track
+        |--------------------------------------------------------------------------
+        */}
+
+        <div className="mt-3">
+          <p
+            className="
+              mb-2
+              text-[11px]
               font-bold
               uppercase
               tracking-wide
-              text-neutral-400
+              text-neutral-500
             "
           >
-            Next in queue
+            Now playing
           </p>
 
           <div
             className="
-              mt-3
               flex
               items-center
               gap-3
+              rounded-lg
+              bg-[#242424]
+              px-2
+              py-2
             "
           >
-            {nextTrack.imageUrl && (
+            {currentTrack.imageUrl ? (
               <img
-                src={nextTrack.imageUrl}
-                alt={nextTrack.title}
+                src={currentTrack.imageUrl}
+                alt={currentTrack.title}
                 className="
-                  h-12
-                  w-12
+                  h-11
+                  w-11
+                  shrink-0
                   rounded
                   object-cover
                 "
               />
+            ) : (
+              <div
+                className="
+                  flex
+                  h-11
+                  w-11
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded
+                  bg-neutral-700
+                  text-lg
+                "
+              >
+                ♪
+              </div>
             )}
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p
                 className="
                   truncate
                   text-sm
                   font-semibold
+                  text-[#1ed760]
                 "
               >
-                {nextTrack.title}
+                {currentTrack.title}
               </p>
 
               <p
                 className="
-                  mt-1
+                  mt-0.5
                   truncate
                   text-xs
                   text-neutral-400
                 "
               >
-                {nextTrack.artistName}
+                {currentTrack.artistName}
               </p>
+            </div>
+
+            <div
+              className="
+                shrink-0
+                text-sm
+                text-[#1ed760]
+              "
+              aria-label={
+                isPlaying ? "Currently playing" : "Current track paused"
+              }
+            >
+              {isPlaying ? "♪" : "Ⅱ"}
             </div>
           </div>
         </div>
-      )}
+
+        {/*
+        |--------------------------------------------------------------------------
+        | Upcoming tracks
+        |--------------------------------------------------------------------------
+        */}
+
+        {upcomingTracks.length > 0 ? (
+          <div className="mt-4">
+            <p
+              className="
+                mb-2
+                text-[11px]
+                font-bold
+                uppercase
+                tracking-wide
+                text-neutral-500
+              "
+            >
+              Next in queue
+            </p>
+
+            <div className="space-y-1">
+              {upcomingTracks.map((track, relativeIndex) => {
+                const queueIndex = currentIndex + relativeIndex + 1;
+
+                return (
+                  <button
+                    key={`${track.id}-${queueIndex}`}
+                    type="button"
+                    onClick={() => playQueueTrack(queueIndex)}
+                    className="
+                        group
+                        flex
+                        w-full
+                        items-center
+                        gap-3
+                        rounded-lg
+                        px-2
+                        py-2
+                        text-left
+                        transition
+                        hover:bg-[#2a2a2a]
+                      "
+                    aria-label={`Play ${track.title}`}
+                  >
+                    {/*
+                      |--------------------------------------------------------------------------
+                      | Queue image
+                      |--------------------------------------------------------------------------
+                      */}
+
+                    {track.imageUrl ? (
+                      <img
+                        src={track.imageUrl}
+                        alt={track.title}
+                        className="
+                            h-11
+                            w-11
+                            shrink-0
+                            rounded
+                            object-cover
+                          "
+                      />
+                    ) : (
+                      <div
+                        className="
+                            flex
+                            h-11
+                            w-11
+                            shrink-0
+                            items-center
+                            justify-center
+                            rounded
+                            bg-neutral-700
+                            text-lg
+                          "
+                      >
+                        ♪
+                      </div>
+                    )}
+
+                    {/*
+                      |--------------------------------------------------------------------------
+                      | Queue track info
+                      |--------------------------------------------------------------------------
+                      */}
+
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className="
+                            truncate
+                            text-sm
+                            font-semibold
+                            text-neutral-200
+                            transition
+                            group-hover:text-white
+                          "
+                      >
+                        {track.title}
+                      </p>
+
+                      <p
+                        className="
+                            mt-0.5
+                            truncate
+                            text-xs
+                            text-neutral-500
+                            transition
+                            group-hover:text-neutral-400
+                          "
+                      >
+                        {track.artistName}
+                      </p>
+                    </div>
+
+                    {/*
+                      |--------------------------------------------------------------------------
+                      | Play hover indicator
+                      |--------------------------------------------------------------------------
+                      */}
+
+                    <span
+                      className="
+                          shrink-0
+                          text-xs
+                          text-neutral-500
+                          opacity-0
+                          transition
+                          group-hover:opacity-100
+                        "
+                    >
+                      ▶
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div
+            className="
+              mt-4
+              rounded-lg
+              border
+              border-white/5
+              px-3
+              py-4
+              text-center
+            "
+          >
+            <p
+              className="
+                text-xs
+                text-neutral-500
+              "
+            >
+              No more songs in the queue.
+            </p>
+          </div>
+        )}
+      </div>
     </aside>
   );
 }
