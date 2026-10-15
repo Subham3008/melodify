@@ -1,7 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 
 export interface ITrack {
-  source: "jamendo";
+  source: "jamendo" | "s3";
 
   externalId: string;
 
@@ -11,11 +11,13 @@ export interface ITrack {
   artistName: string;
 
   albumId: string | null;
+
   albumName: string | null;
 
   durationSeconds: number;
 
   imageUrl: string;
+
   streamUrl: string;
 
   licenseUrl: string | null;
@@ -24,16 +26,25 @@ export interface ITrack {
 
   /*
   |--------------------------------------------------------------------------
-  | Discover catalog flag
+  | Internal storage metadata
   |--------------------------------------------------------------------------
   |
-  | true
-  | → normal Discover Music section me show ho sakta hai
+  | Jamendo tracks:
+  | null
   |
-  | false
-  | → recommendation/search ke liye DB me available rahega
-  |   but Discover Music me show nahi hoga
+  | S3 tracks:
+  | S3 object key
   |
+  */
+
+  audioStorageKey: string | null;
+
+  imageStorageKey: string | null;
+
+  /*
+  |--------------------------------------------------------------------------
+  | Discover catalog flag
+  |--------------------------------------------------------------------------
   */
 
   isDiscoverable: boolean;
@@ -48,8 +59,11 @@ const trackSchema = new Schema<ITrack>(
   {
     source: {
       type: String,
-      enum: ["jamendo"],
+
+      enum: ["jamendo", "s3"],
+
       required: true,
+
       default: "jamendo",
     },
 
@@ -92,12 +106,12 @@ const trackSchema = new Schema<ITrack>(
 
     imageUrl: {
       type: String,
-      required: true,
+      default: "",
     },
 
     streamUrl: {
       type: String,
-      required: true,
+      default: "",
     },
 
     licenseUrl: {
@@ -110,22 +124,15 @@ const trackSchema = new Schema<ITrack>(
       default: false,
     },
 
-    /*
-    |--------------------------------------------------------------------------
-    | Discover Music visibility
-    |--------------------------------------------------------------------------
-    |
-    | Default false intentionally.
-    |
-    | Normal Discover fetch explicitly set karega:
-    |
-    | isDiscoverable = true
-    |
-    | Recommendation-only Jamendo fetch:
-    |
-    | isDiscoverable = false
-    |
-    */
+    audioStorageKey: {
+      type: String,
+      default: null,
+    },
+
+    imageStorageKey: {
+      type: String,
+      default: null,
+    },
 
     isDiscoverable: {
       type: Boolean,
@@ -152,19 +159,6 @@ trackSchema.index(
     unique: true,
   },
 );
-
-/*
-|--------------------------------------------------------------------------
-| Discover query index
-|--------------------------------------------------------------------------
-|
-| Discover Music frequently filter karega:
-|
-| isDiscoverable: true
-|
-| Isliye index useful rahega.
-|
-*/
 
 trackSchema.index({
   isDiscoverable: 1,

@@ -5,6 +5,7 @@ import likeRoutes from "../modules/like/like.routes.js";
 import playlistRoutes from "../modules/playlist/playlist.routes.js";
 import historyRoutes from "../modules/history/history.routes.js";
 import recommendationRoutes from "../modules/recommendation/recommendation.routes.js";
+import adminRoutes from "../modules/admin/admin.routes.js";
 
 const router = Router();
 
@@ -14,5 +15,6 @@ router.use("/likes", likeRoutes);
 router.use("/playlists", playlistRoutes);
 router.use("/history", historyRoutes);
 router.use("/recommendations", recommendationRoutes);
+router.use("/admin", adminRoutes);
 
 export default router;

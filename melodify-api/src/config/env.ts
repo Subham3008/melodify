@@ -33,10 +33,29 @@ const envSchema = z.object({
 
   REFRESH_TOKEN_EXPIRES_IN: z.coerce.number().default(604800),
 
-  // Jamendo
+  /*
+    |--------------------------------------------------------------------------
+    | Jamendo
+    |--------------------------------------------------------------------------
+    */
+
   JAMENDO_CLIENT_ID: z.string().min(1, "JAMENDO_CLIENT_ID is required"),
 
   JAMENDO_BASE_URL: z.string().default("https://api.jamendo.com/v3.0"),
+
+  /*
+    |--------------------------------------------------------------------------
+    | AWS / S3
+    |--------------------------------------------------------------------------
+    */
+
+  AWS_REGION: z.string().min(1, "AWS_REGION is required"),
+
+  AWS_ACCESS_KEY_ID: z.string().min(1, "AWS_ACCESS_KEY_ID is required"),
+
+  AWS_SECRET_ACCESS_KEY: z.string().min(1, "AWS_SECRET_ACCESS_KEY is required"),
+
+  AWS_S3_BUCKET: z.string().min(1, "AWS_S3_BUCKET is required"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

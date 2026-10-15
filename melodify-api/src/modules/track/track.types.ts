@@ -30,7 +30,7 @@ export interface JamendoTracksResponse {
 }
 
 export interface NormalizedTrack {
-  source: "jamendo";
+  source: "jamendo" | "s3";
 
   externalId: string;
 
@@ -40,6 +40,7 @@ export interface NormalizedTrack {
   artistName: string;
 
   albumId: string | null;
+
   albumName: string | null;
 
   durationSeconds: number;
