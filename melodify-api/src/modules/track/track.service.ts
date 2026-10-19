@@ -6,7 +6,15 @@ import { fetchJamendoTracks } from "./jamendo.service.js";
 
 import { ApiError } from "../../utils/ApiError.js";
 
+import { getS3MediaUrl } from "./s3-media.service.js";
+
 import type { NormalizedTrack, TrackDTO } from "./track.types.js";
+
+/*
+|--------------------------------------------------------------------------
+| Inputs
+|--------------------------------------------------------------------------
+*/
 
 interface DiscoverTracksInput {
   limit?: number;
@@ -46,11 +54,70 @@ interface GetTracksInput {
 
 /*
 |--------------------------------------------------------------------------
-| Map MongoDB Track -> API DTO
+| Track document type
 |--------------------------------------------------------------------------
 */
 
-const mapTrackToDTO = (track: InstanceType<typeof Track>): TrackDTO => {
+type TrackDocument = InstanceType<typeof Track>;
+
+/*
+|--------------------------------------------------------------------------
+| Map MongoDB Track -> API DTO
+|--------------------------------------------------------------------------
+|
+| Jamendo:
+| existing URLs are returned as-is.
+|
+| S3:
+| audioStorageKey -> signed streamUrl
+| imageStorageKey -> signed imageUrl
+|
+| External image URL:
+| existing imageUrl remains untouched.
+|
+*/
+
+const mapTrackToDTO = async (track: TrackDocument): Promise<TrackDTO> => {
+  let imageUrl = track.imageUrl;
+
+  let streamUrl = track.streamUrl;
+
+  /*
+    |--------------------------------------------------------------------------
+    | S3 track
+    |--------------------------------------------------------------------------
+    */
+
+  if (track.source === "s3") {
+    /*
+      |--------------------------------------------------------------------------
+      | Audio
+      |--------------------------------------------------------------------------
+      */
+
+    if (track.audioStorageKey) {
+      streamUrl = await getS3MediaUrl(track.audioStorageKey);
+    }
+
+    /*
+      |--------------------------------------------------------------------------
+      | Cover
+      |--------------------------------------------------------------------------
+      |
+      | If admin uploaded cover:
+      | use private S3 signed URL.
+      |
+      | If admin used external imageUrl:
+      | imageStorageKey will be null
+      | and existing imageUrl is preserved.
+      |
+      */
+
+    if (track.imageStorageKey) {
+      imageUrl = await getS3MediaUrl(track.imageStorageKey);
+    }
+  }
+
   return {
     id: String(track._id),
 
@@ -70,9 +137,9 @@ const mapTrackToDTO = (track: InstanceType<typeof Track>): TrackDTO => {
 
     durationSeconds: track.durationSeconds,
 
-    imageUrl: track.imageUrl,
+    imageUrl,
 
-    streamUrl: track.streamUrl,
+    streamUrl,
 
     licenseUrl: track.licenseUrl,
 
@@ -82,21 +149,26 @@ const mapTrackToDTO = (track: InstanceType<typeof Track>): TrackDTO => {
 
 /*
 |--------------------------------------------------------------------------
-| Save / upsert tracks
+| Map multiple tracks
 |--------------------------------------------------------------------------
 |
-| Normal Discover fetch:
+| Signed URLs can be generated in parallel.
 |
-| isDiscoverable = true
-|
-| Recommendation / search / artist / album fetch:
-|
-| isDiscoverable = false
-|
+*/
+
+const mapTracksToDTO = async (tracks: TrackDocument[]): Promise<TrackDTO[]> => {
+  return Promise.all(tracks.map(mapTrackToDTO));
+};
+
+/*
+|--------------------------------------------------------------------------
+| Save / upsert Jamendo tracks
+|--------------------------------------------------------------------------
 */
 
 const saveTracks = async (
   tracks: NormalizedTrack[],
+
   isDiscoverable = true,
 ): Promise<void> => {
   if (tracks.length === 0) {
@@ -116,9 +188,6 @@ const saveTracks = async (
           |--------------------------------------------------------------------------
           | Normal Discover fetch
           |--------------------------------------------------------------------------
-          |
-          | Existing/new track becomes Discover Music eligible.
-          |
           */
 
     if (isDiscoverable) {
@@ -148,19 +217,7 @@ const saveTracks = async (
           | Non-Discover fetch
           |--------------------------------------------------------------------------
           |
-          | Used by:
-          |
-          | - recommendations
-          | - Because You Listened To
-          | - search fallback
-          | - artist page
-          | - album page
-          |
-          | IMPORTANT:
-          |
-          | Existing isDiscoverable=true track must stay true.
-          |
-          | false is only set for a brand-new inserted track.
+          | Existing discoverable track must remain discoverable.
           |
           */
 
@@ -201,20 +258,21 @@ export const discoverTracks = async (
 ): Promise<TrackDTO[]> => {
   /*
     |--------------------------------------------------------------------------
-    | Separate local DB flag from Jamendo API options
+    | Separate local visibility flag from Jamendo options
     |--------------------------------------------------------------------------
-    |
-    | Jamendo API does not know what "isDiscoverable" means.
-    |
     */
 
-  const { isDiscoverable = true, ...jamendoInput } = input;
+  const {
+    isDiscoverable = true,
+
+    ...jamendoInput
+  } = input;
 
   const jamendoTracks = await fetchJamendoTracks(jamendoInput);
 
   /*
     |--------------------------------------------------------------------------
-    | Persist with correct visibility
+    | Save with correct visibility
     |--------------------------------------------------------------------------
     */
 
@@ -236,7 +294,7 @@ export const discoverTracks = async (
 
   /*
     |--------------------------------------------------------------------------
-    | Preserve Jamendo response order
+    | Preserve Jamendo order
     |--------------------------------------------------------------------------
     */
 
@@ -244,10 +302,11 @@ export const discoverTracks = async (
     storedTracks.map((track) => [track.externalId, track]),
   );
 
-  return jamendoTracks
+  const orderedTracks = jamendoTracks
     .map((track) => trackMap.get(track.externalId))
-    .filter((track): track is NonNullable<typeof track> => Boolean(track))
-    .map(mapTrackToDTO);
+    .filter((track): track is TrackDocument => Boolean(track));
+
+  return mapTracksToDTO(orderedTracks);
 };
 
 /*
@@ -258,12 +317,18 @@ export const discoverTracks = async (
 
 export const getTracks = async ({
   search,
+
   page = 1,
+
   limit = 20,
 }: GetTracksInput): Promise<TrackDTO[]> => {
   const safePage = Math.max(page, 1);
 
-  const safeLimit = Math.min(Math.max(limit, 1), 50);
+  const safeLimit = Math.min(
+    Math.max(limit, 1),
+
+    50,
+  );
 
   const skip = (safePage - 1) * safeLimit;
 
@@ -276,17 +341,7 @@ export const getTracks = async ({
     | Search mode
     |--------------------------------------------------------------------------
     |
-    | Search is intentionally NOT restricted to:
-    |
-    | isDiscoverable = true
-    |
-    | This means user can search:
-    |
-    | normal catalog tracks
-    | recommendation-fetched tracks
-    | Because You Listened To tracks
-    | artist-page fetched tracks
-    | album-page fetched tracks
+    | Search intentionally includes non-discoverable DB tracks too.
     |
     */
 
@@ -316,10 +371,6 @@ export const getTracks = async ({
       |--------------------------------------------------------------------------
       | Normal Discover Music
       |--------------------------------------------------------------------------
-      |
-      | Recommendation/search/artist/album-specific tracks must NOT enter
-      | the shared Discover Music catalog.
-      |
       */
 
     query.isDiscoverable = true;
@@ -345,23 +396,13 @@ export const getTracks = async ({
     */
 
   if (tracks.length > 0) {
-    return tracks.map(mapTrackToDTO);
+    return mapTracksToDTO(tracks);
   }
 
   /*
     |--------------------------------------------------------------------------
     | Normal Discover fallback
     |--------------------------------------------------------------------------
-    |
-    | There may be no isDiscoverable=true records yet because:
-    |
-    | 1. field was newly introduced
-    | 2. old database records don't have it
-    | 3. fresh database
-    |
-    | In that situation fetch normal popular Jamendo catalog
-    | and explicitly mark it discoverable.
-    |
     */
 
   if (!normalizedSearch) {
@@ -379,14 +420,8 @@ export const getTracks = async ({
     | Search fallback
     |--------------------------------------------------------------------------
     |
-    | Search wasn't found in MongoDB.
-    |
-    | Ask Jamendo.
-    |
-    | IMPORTANT:
-    |
-    | Search results must NOT automatically become
-    | part of Discover Music.
+    | Jamendo fallback result must not automatically
+    | enter Discover catalog.
     |
     */
 
@@ -448,17 +483,15 @@ export const getTracksByIds = async (
 
   /*
     |--------------------------------------------------------------------------
-    | Preserve input order
+    | Preserve requested order
     |--------------------------------------------------------------------------
-    |
-    | MongoDB $in does not guarantee original array order.
-    |
     */
 
   const trackMap = new Map(tracks.map((track) => [String(track._id), track]));
 
-  return validTrackIds
+  const orderedTracks = validTrackIds
     .map((id) => trackMap.get(id))
-    .filter((track): track is NonNullable<typeof track> => Boolean(track))
-    .map(mapTrackToDTO);
+    .filter((track): track is TrackDocument => Boolean(track));
+
+  return mapTracksToDTO(orderedTracks);
 };
