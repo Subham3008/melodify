@@ -213,7 +213,7 @@ export const createAdminTrack = async (input: CreateAdminTrackInput) => {
         |--------------------------------------------------------------------------
         */
 
-    isDiscoverable: false,
+    isDiscoverable: true,
 
     lastSyncedAt: new Date(),
   });
