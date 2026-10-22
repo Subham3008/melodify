@@ -56,6 +56,8 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().min(1, "AWS_SECRET_ACCESS_KEY is required"),
 
   AWS_S3_BUCKET: z.string().min(1, "AWS_S3_BUCKET is required"),
+
+  CLOUDFRONT_DOMAIN: z.string().min(1, "CLOUDFRONT_DOMAIN is required"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

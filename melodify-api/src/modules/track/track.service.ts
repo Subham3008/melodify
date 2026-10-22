@@ -6,7 +6,7 @@ import { fetchJamendoTracks } from "./jamendo.service.js";
 
 import { ApiError } from "../../utils/ApiError.js";
 
-import { getS3MediaUrl } from "./s3-media.service.js";
+import { getCloudFrontMediaUrl } from "./cloudfront-media.service.js";
 
 import type { NormalizedTrack, TrackDTO } from "./track.types.js";
 
@@ -65,56 +65,57 @@ type TrackDocument = InstanceType<typeof Track>;
 | Map MongoDB Track -> API DTO
 |--------------------------------------------------------------------------
 |
-| Jamendo:
-| existing URLs are returned as-is.
+| Jamendo track:
+| → existing imageUrl and streamUrl return as-is.
 |
-| S3:
-| audioStorageKey -> signed streamUrl
-| imageStorageKey -> signed imageUrl
+| S3 track:
+| → audioStorageKey becomes CloudFront streamUrl.
+| → imageStorageKey becomes CloudFront imageUrl.
 |
-| External image URL:
-| existing imageUrl remains untouched.
+| External cover URL:
+| → if imageStorageKey is null, existing imageUrl remains untouched.
 |
 */
 
-const mapTrackToDTO = async (track: TrackDocument): Promise<TrackDTO> => {
+const mapTrackToDTO = (track: TrackDocument): TrackDTO => {
   let imageUrl = track.imageUrl;
 
   let streamUrl = track.streamUrl;
 
   /*
-    |--------------------------------------------------------------------------
-    | S3 track
-    |--------------------------------------------------------------------------
-    */
+  |--------------------------------------------------------------------------
+  | S3 hosted track
+  |--------------------------------------------------------------------------
+  */
 
   if (track.source === "s3") {
     /*
-      |--------------------------------------------------------------------------
-      | Audio
-      |--------------------------------------------------------------------------
-      */
+    |--------------------------------------------------------------------------
+    | Audio
+    |--------------------------------------------------------------------------
+    */
 
     if (track.audioStorageKey) {
-      streamUrl = await getS3MediaUrl(track.audioStorageKey);
+      streamUrl = getCloudFrontMediaUrl(track.audioStorageKey);
     }
 
     /*
-      |--------------------------------------------------------------------------
-      | Cover
-      |--------------------------------------------------------------------------
-      |
-      | If admin uploaded cover:
-      | use private S3 signed URL.
-      |
-      | If admin used external imageUrl:
-      | imageStorageKey will be null
-      | and existing imageUrl is preserved.
-      |
-      */
+    |--------------------------------------------------------------------------
+    | Cover
+    |--------------------------------------------------------------------------
+    |
+    | Uploaded cover:
+    | imageStorageKey exists
+    | → CloudFront URL
+    |
+    | External cover URL:
+    | imageStorageKey is null
+    | → existing imageUrl stays unchanged
+    |
+    */
 
     if (track.imageStorageKey) {
-      imageUrl = await getS3MediaUrl(track.imageStorageKey);
+      imageUrl = getCloudFrontMediaUrl(track.imageStorageKey);
     }
   }
 
@@ -151,13 +152,10 @@ const mapTrackToDTO = async (track: TrackDocument): Promise<TrackDTO> => {
 |--------------------------------------------------------------------------
 | Map multiple tracks
 |--------------------------------------------------------------------------
-|
-| Signed URLs can be generated in parallel.
-|
 */
 
-const mapTracksToDTO = async (tracks: TrackDocument[]): Promise<TrackDTO[]> => {
-  return Promise.all(tracks.map(mapTrackToDTO));
+const mapTracksToDTO = (tracks: TrackDocument[]): TrackDTO[] => {
+  return tracks.map(mapTrackToDTO);
 };
 
 /*
@@ -185,10 +183,13 @@ const saveTracks = async (
     };
 
     /*
-          |--------------------------------------------------------------------------
-          | Normal Discover fetch
-          |--------------------------------------------------------------------------
-          */
+        |--------------------------------------------------------------------------
+        | Normal Discover fetch
+        |--------------------------------------------------------------------------
+        |
+        | Existing/new track becomes Discover Music eligible.
+        |
+        */
 
     if (isDiscoverable) {
       return {
@@ -213,13 +214,23 @@ const saveTracks = async (
     }
 
     /*
-          |--------------------------------------------------------------------------
-          | Non-Discover fetch
-          |--------------------------------------------------------------------------
-          |
-          | Existing discoverable track must remain discoverable.
-          |
-          */
+        |--------------------------------------------------------------------------
+        | Non-Discover fetch
+        |--------------------------------------------------------------------------
+        |
+        | Used by:
+        |
+        | - recommendations
+        | - Because You Listened To
+        | - search fallback
+        | - artist page
+        | - album page
+        |
+        | Existing isDiscoverable=true track must stay true.
+        |
+        | false is only set for a brand-new inserted track.
+        |
+        */
 
     return {
       updateOne: {
@@ -294,7 +305,7 @@ export const discoverTracks = async (
 
   /*
     |--------------------------------------------------------------------------
-    | Preserve Jamendo order
+    | Preserve Jamendo response order
     |--------------------------------------------------------------------------
     */
 
@@ -371,6 +382,10 @@ export const getTracks = async ({
       |--------------------------------------------------------------------------
       | Normal Discover Music
       |--------------------------------------------------------------------------
+      |
+      | Both Jamendo and S3 tracks can appear here
+      | when isDiscoverable=true.
+      |
       */
 
     query.isDiscoverable = true;
@@ -403,6 +418,10 @@ export const getTracks = async ({
     |--------------------------------------------------------------------------
     | Normal Discover fallback
     |--------------------------------------------------------------------------
+    |
+    | If DB has no discoverable tracks,
+    | fetch popular tracks from Jamendo.
+    |
     */
 
   if (!normalizedSearch) {
@@ -420,8 +439,12 @@ export const getTracks = async ({
     | Search fallback
     |--------------------------------------------------------------------------
     |
-    | Jamendo fallback result must not automatically
-    | enter Discover catalog.
+    | Search wasn't found in MongoDB.
+    |
+    | Ask Jamendo.
+    |
+    | Search results must NOT automatically
+    | become part of normal Discover Music.
     |
     */
 
@@ -485,6 +508,9 @@ export const getTracksByIds = async (
     |--------------------------------------------------------------------------
     | Preserve requested order
     |--------------------------------------------------------------------------
+    |
+    | MongoDB $in does not guarantee original array order.
+    |
     */
 
   const trackMap = new Map(tracks.map((track) => [String(track._id), track]));
