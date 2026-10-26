@@ -16,17 +16,26 @@ export const createTrack = (track) => {
 
     artistName: track.artistName,
 
-    albumId: track.albumId ?? null,
+    albumId:
+      track.albumId ?? null,
 
-    albumName: track.albumName ?? null,
+    albumName:
+      track.albumName ?? null,
 
-    durationSeconds: track.durationSeconds,
+    durationSeconds:
+      track.durationSeconds,
 
-    imageUrl: track.imageUrl,
+    imageUrl:
+      track.imageUrl,
 
-    streamUrl: track.streamUrl,
+    streamUrl:
+      track.streamUrl,
 
-    licenseUrl: track.licenseUrl ?? null,
+    hlsUrl:
+      track.hlsUrl ?? null,
+
+    licenseUrl:
+      track.licenseUrl ?? null,
 
     downloadAllowed:
       track.downloadAllowed ?? false,

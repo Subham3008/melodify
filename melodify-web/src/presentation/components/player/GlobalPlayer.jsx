@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+
 import { usePlayerStore } from "@/presentation/stores/player.store";
 import { useAuthStore } from "@/presentation/stores/auth.store";
 import { sendPlaybackEvent } from "@/application/history/history.usecases";
 import { useHistoryStore } from "@/presentation/stores/history.store";
 import { useRecommendationStore } from "@/presentation/stores/recommendation.store";
+import { setupTrackAudioSource } from "@/presentation/utils/setupHlsAudio";
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds)) {
@@ -21,8 +23,28 @@ const formatTime = (seconds) => {
 
 export default function GlobalPlayer() {
   const audioRef = useRef(null);
+
+  /*
+  |--------------------------------------------------------------------------
+  | HLS / audio source cleanup
+  |--------------------------------------------------------------------------
+  |
+  | Important:
+  |
+  | We do NOT directly return HLS cleanup from the track-change effect.
+  |
+  | Reason:
+  | Before changing tracks we need access to the previous audio.currentTime
+  | so SKIPPED history can be recorded correctly.
+  |
+  */
+
+  const audioSourceCleanupRef = useRef(null);
+
   const playedTrackIdRef = useRef(null);
+
   const previousTrackRef = useRef(null);
+
   const completedTrackIdRef = useRef(null);
 
   const currentTrack = usePlayerStore((state) => state.currentTrack);
@@ -80,40 +102,40 @@ export default function GlobalPlayer() {
       });
 
       /*
-      |--------------------------------------------------------------------------
-      | Update Recently Played UI
-      |--------------------------------------------------------------------------
-      */
+        |--------------------------------------------------------------------------
+        | Update Recently Played UI
+        |--------------------------------------------------------------------------
+        */
 
       if (eventType === "PLAYED") {
         pushRecentlyPlayed(track, playbackEvent?.createdAt);
       }
 
       /*
-      |--------------------------------------------------------------------------
-      | Mark recommendations stale
-      |--------------------------------------------------------------------------
-      |
-      | Backend:
-      |
-      | PlaybackEvent
-      | → BullMQ
-      | → RecommendationProfile rebuild
-      |
-      | Frontend:
-      |
-      | We only mark recommendations as stale.
-      | RecommendedForYou decides when to refetch.
-      |
-      */
+        |--------------------------------------------------------------------------
+        | Mark recommendations stale
+        |--------------------------------------------------------------------------
+        |
+        | Backend:
+        |
+        | PlaybackEvent
+        | → BullMQ
+        | → RecommendationProfile rebuild
+        |
+        | Frontend:
+        |
+        | We only mark recommendations as stale.
+        | RecommendedForYou decides when to refetch.
+        |
+        */
 
       markRecommendationsStale();
     } catch (error) {
       /*
-      |--------------------------------------------------------------------------
-      | Playback must continue even if analytics/history fails
-      |--------------------------------------------------------------------------
-      */
+        |--------------------------------------------------------------------------
+        | Playback must continue even if analytics/history fails
+        |--------------------------------------------------------------------------
+        */
 
       console.error(`Failed to record ${eventType} playback event:`, error);
     }
@@ -135,42 +157,48 @@ export default function GlobalPlayer() {
     const previousTrack = previousTrackRef.current;
 
     /*
-  |--------------------------------------------------------------------------
-  | Detect leaving previous track
-  |--------------------------------------------------------------------------
-  |
-  | Covers:
-  |
-  | Song A → click Song D directly
-  | Song A → Next
-  | Song A → Previous
-  |
-  */
+    |--------------------------------------------------------------------------
+    | Detect leaving previous track
+    |--------------------------------------------------------------------------
+    |
+    | Covers:
+    |
+    | Song A → click Song D directly
+    | Song A → Next
+    | Song A → Previous
+    |
+    */
 
     const changedToDifferentTrack =
       previousTrack && currentTrack && previousTrack.id !== currentTrack.id;
 
     if (changedToDifferentTrack) {
       /*
-    |--------------------------------------------------------------------------
-    | Natural completion already recorded
-    |--------------------------------------------------------------------------
-    |
-    | Don't create:
-    |
-    | COMPLETED
-    | SKIPPED   ❌
-    |
-    */
+      |--------------------------------------------------------------------------
+      | Save previous position BEFORE destroying previous HLS source
+      |--------------------------------------------------------------------------
+      */
+
+      const previousPositionSeconds = audio.currentTime;
+
+      /*
+      |--------------------------------------------------------------------------
+      | Natural completion already recorded
+      |--------------------------------------------------------------------------
+      |
+      | Don't create:
+      |
+      | COMPLETED
+      | SKIPPED ❌
+      |
+      */
 
       const wasCompleted = completedTrackIdRef.current === previousTrack.id;
 
       if (!wasCompleted) {
         void sendPlaybackEventSafely(
           "SKIPPED",
-
-          audio.currentTime,
-
+          previousPositionSeconds,
           previousTrack,
         );
       }
@@ -179,26 +207,45 @@ export default function GlobalPlayer() {
     }
 
     /*
-  |--------------------------------------------------------------------------
-  | Remember current track
-  |--------------------------------------------------------------------------
-  */
+    |--------------------------------------------------------------------------
+    | Cleanup previous audio/HLS source
+    |--------------------------------------------------------------------------
+    |
+    | For HLS:
+    | → destroys previous hls.js instance
+    |
+    | For normal stream:
+    | → clears previous audio src
+    |
+    */
+
+    if (audioSourceCleanupRef.current) {
+      audioSourceCleanupRef.current();
+
+      audioSourceCleanupRef.current = null;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Remember current track
+    |--------------------------------------------------------------------------
+    */
 
     previousTrackRef.current = currentTrack ?? null;
 
     /*
-  |--------------------------------------------------------------------------
-  | New playback session
-  |--------------------------------------------------------------------------
-  */
+    |--------------------------------------------------------------------------
+    | New playback session
+    |--------------------------------------------------------------------------
+    */
 
     playedTrackIdRef.current = null;
 
     /*
-  |--------------------------------------------------------------------------
-  | Player cleared
-  |--------------------------------------------------------------------------
-  */
+    |--------------------------------------------------------------------------
+    | Player cleared
+    |--------------------------------------------------------------------------
+    */
 
     if (!currentTrack) {
       audio.pause();
@@ -220,20 +267,47 @@ export default function GlobalPlayer() {
     }
 
     /*
-  |--------------------------------------------------------------------------
-  | Load new track
-  |--------------------------------------------------------------------------
-  */
+    |--------------------------------------------------------------------------
+    | Load new track
+    |--------------------------------------------------------------------------
+    |
+    | S3 ready track:
+    | → hlsUrl
+    | → hls.js adaptive playback
+    |
+    | Jamendo / HLS unavailable:
+    | → streamUrl
+    |
+    */
 
     setCurrentTime(0);
     setDuration(0);
     setPlayerError(null);
     setBuffering(true);
 
-    audio.src = currentTrack.streamUrl;
+    console.log("PLAYER TRACK:", currentTrack);
 
-    audio.load();
+    audioSourceCleanupRef.current = setupTrackAudioSource({
+      audio,
+      track: currentTrack,
+    });
   }, [currentTrack]);
+
+  /*
+  |--------------------------------------------------------------------------
+  | Cleanup on actual component unmount
+  |--------------------------------------------------------------------------
+  */
+
+  useEffect(() => {
+    return () => {
+      if (audioSourceCleanupRef.current) {
+        audioSourceCleanupRef.current();
+
+        audioSourceCleanupRef.current = null;
+      }
+    };
+  }, []);
 
   /*
   |--------------------------------------------------------------------------
@@ -253,6 +327,7 @@ export default function GlobalPlayer() {
         // User ne play complete hone se pehle
         // pause kar diya.
         // Ye actual playback error nahi hai.
+
         if (error.name === "AbortError") {
           return;
         }
@@ -302,11 +377,11 @@ export default function GlobalPlayer() {
     }
 
     /*
-  |--------------------------------------------------------------------------
-  | Spotify-style:
-  | More than 3 sec → restart current song
-  |--------------------------------------------------------------------------
-  */
+      |--------------------------------------------------------------------------
+      | Spotify-style:
+      | More than 3 sec → restart current song
+      |--------------------------------------------------------------------------
+      */
 
     if (audio.currentTime > 3) {
       audio.currentTime = 0;
@@ -317,14 +392,14 @@ export default function GlobalPlayer() {
     }
 
     /*
-  |--------------------------------------------------------------------------
-  | Change to previous track
-  |--------------------------------------------------------------------------
-  |
-  | SKIPPED will automatically be recorded
-  | by the track-change effect.
-  |
-  */
+      |--------------------------------------------------------------------------
+      | Change to previous track
+      |--------------------------------------------------------------------------
+      |
+      | SKIPPED will automatically be recorded
+      | by the track-change effect.
+      |
+      */
 
     playPrevious();
   };
@@ -379,6 +454,7 @@ export default function GlobalPlayer() {
         }}
         onPlaying={(event) => {
           setBuffering(false);
+
           setPlayerError(null);
 
           /*
@@ -398,6 +474,36 @@ export default function GlobalPlayer() {
         }}
         onCanPlay={() => {
           setBuffering(false);
+
+          /*
+  |--------------------------------------------------------------------------
+  | HLS first-play retry
+  |--------------------------------------------------------------------------
+  |
+  | HLS manifest/segments asynchronously load hote hain.
+  | Initial audio.play() source ready hone se pehle fire ho sakta hai.
+  |
+  | Once browser says audio can play, retry playback only if
+  | Zustand still says the user wants the track playing.
+  |
+  */
+
+          if (isPlaying && audioRef.current) {
+            audioRef.current.play().catch((error) => {
+              if (error.name === "AbortError") {
+                return;
+              }
+
+              console.error(
+                "Audio playback failed after HLS became ready:",
+                error,
+              );
+
+              setIsPlaying(false);
+
+              setPlayerError("Unable to play this track.");
+            });
+          }
         }}
         onEnded={(event) => {
           const audio = event.currentTarget;
@@ -412,7 +518,6 @@ export default function GlobalPlayer() {
 
           void sendPlaybackEventSafely(
             "COMPLETED",
-
             audio.duration || audio.currentTime,
           );
 
