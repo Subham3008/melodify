@@ -58,6 +58,8 @@ const envSchema = z.object({
   AWS_S3_BUCKET: z.string().min(1, "AWS_S3_BUCKET is required"),
 
   CLOUDFRONT_DOMAIN: z.string().min(1, "CLOUDFRONT_DOMAIN is required"),
+
+  FFMPEG_PATH: z.string().min(1, "FFMPEG_PATH is required"),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);

@@ -107,7 +107,7 @@ export const createAdminTrackController = async (
 
       imageUrl: track.imageUrl,
 
-      processingStatus: "uploaded",
+      processingStatus: track.processingStatus,
 
       isDiscoverable: track.isDiscoverable,
     },

@@ -6,6 +6,8 @@ import { ApiError } from "../../utils/ApiError.js";
 
 import { uploadAdminFile } from "./admin-storage.service.js";
 
+import { enqueueAudioProcessing } from "../../queues/audio-processing.queue.js";
+
 interface CreateAdminTrackInput {
   title: string;
 
@@ -207,16 +209,36 @@ export const createAdminTrack = async (input: CreateAdminTrackInput) => {
 
     imageStorageKey,
 
-    /*
-        |--------------------------------------------------------------------------
-        | Hidden until streaming URL is implemented
-        |--------------------------------------------------------------------------
-        */
-
     isDiscoverable: true,
+
+    processingStatus: "uploaded",
+
+    hlsMasterStorageKey: null,
+
+    processingError: null,
 
     lastSyncedAt: new Date(),
   });
+
+  /*
+|--------------------------------------------------------------------------
+| Queue HLS processing
+|--------------------------------------------------------------------------
+*/
+
+  try {
+    await enqueueAudioProcessing(String(track._id));
+  } catch (error) {
+    await Track.findByIdAndUpdate(track._id, {
+      $set: {
+        processingStatus: "failed",
+
+        processingError: "Could not queue audio processing",
+      },
+    });
+
+    throw error;
+  }
 
   return track;
 };
