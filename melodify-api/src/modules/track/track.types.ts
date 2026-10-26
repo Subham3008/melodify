@@ -55,4 +55,6 @@ export interface NormalizedTrack {
 
 export interface TrackDTO extends NormalizedTrack {
   id: string;
+
+  hlsUrl: string | null;
 }

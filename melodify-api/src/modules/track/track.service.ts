@@ -1,11 +1,8 @@
 import mongoose from "mongoose";
 
 import { Track } from "./track.model.js";
-
 import { fetchJamendoTracks } from "./jamendo.service.js";
-
 import { ApiError } from "../../utils/ApiError.js";
-
 import { getCloudFrontMediaUrl } from "./cloudfront-media.service.js";
 
 import type { NormalizedTrack, TrackDTO } from "./track.types.js";
@@ -18,13 +15,9 @@ import type { NormalizedTrack, TrackDTO } from "./track.types.js";
 
 interface DiscoverTracksInput {
   limit?: number;
-
   offset?: number;
-
   search?: string;
-
   artistId?: string;
-
   albumId?: string;
 
   /*
@@ -46,9 +39,7 @@ interface DiscoverTracksInput {
 
 interface GetTracksInput {
   search?: string;
-
   page?: number;
-
   limit?: number;
 }
 
@@ -67,10 +58,15 @@ type TrackDocument = InstanceType<typeof Track>;
 |
 | Jamendo track:
 | → existing imageUrl and streamUrl return as-is.
+| → hlsUrl = null.
 |
 | S3 track:
 | → audioStorageKey becomes CloudFront streamUrl.
 | → imageStorageKey becomes CloudFront imageUrl.
+|
+| HLS:
+| → only exposed when processingStatus === "ready".
+| → hlsMasterStorageKey becomes CloudFront hlsUrl.
 |
 | External cover URL:
 | → if imageStorageKey is null, existing imageUrl remains untouched.
@@ -82,6 +78,8 @@ const mapTrackToDTO = (track: TrackDocument): TrackDTO => {
 
   let streamUrl = track.streamUrl;
 
+  let hlsUrl: string | null = null;
+
   /*
   |--------------------------------------------------------------------------
   | S3 hosted track
@@ -91,8 +89,13 @@ const mapTrackToDTO = (track: TrackDocument): TrackDTO => {
   if (track.source === "s3") {
     /*
     |--------------------------------------------------------------------------
-    | Audio
+    | Original audio
     |--------------------------------------------------------------------------
+    |
+    | Keep this even after HLS is ready.
+    |
+    | It acts as fallback playback if HLS fails or browser does not support it.
+    |
     */
 
     if (track.audioStorageKey) {
@@ -116,6 +119,25 @@ const mapTrackToDTO = (track: TrackDocument): TrackDTO => {
 
     if (track.imageStorageKey) {
       imageUrl = getCloudFrontMediaUrl(track.imageStorageKey);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Adaptive HLS stream
+    |--------------------------------------------------------------------------
+    |
+    | HLS URL should only be returned when processing finished successfully.
+    |
+    | uploaded / processing / failed
+    | → hlsUrl = null
+    |
+    | ready + hlsMasterStorageKey
+    | → CloudFront master.m3u8 URL
+    |
+    */
+
+    if (track.processingStatus === "ready" && track.hlsMasterStorageKey) {
+      hlsUrl = getCloudFrontMediaUrl(track.hlsMasterStorageKey);
     }
   }
 
@@ -142,6 +164,8 @@ const mapTrackToDTO = (track: TrackDocument): TrackDTO => {
 
     streamUrl,
 
+    hlsUrl,
+
     licenseUrl: track.licenseUrl,
 
     downloadAllowed: track.downloadAllowed,
@@ -166,7 +190,6 @@ const mapTracksToDTO = (tracks: TrackDocument[]): TrackDTO[] => {
 
 const saveTracks = async (
   tracks: NormalizedTrack[],
-
   isDiscoverable = true,
 ): Promise<void> => {
   if (tracks.length === 0) {
