@@ -291,24 +291,93 @@ export const discoverTracks = async (
   input: DiscoverTracksInput,
 ): Promise<TrackDTO[]> => {
   /*
+  |--------------------------------------------------------------------------
+  | Separate local DB flag from source-specific options
+  |--------------------------------------------------------------------------
+  */
+
+  const { isDiscoverable = true, artistId, albumId, ...restInput } = input;
+
+  /*
+  |--------------------------------------------------------------------------
+  | INTERNAL S3 ARTIST
+  |--------------------------------------------------------------------------
+  |
+  | Internal artist IDs look like:
+  |
+  | internal-artist-arijit-singh
+  |
+  | These are NOT Jamendo IDs.
+  |
+  | Therefore never send them to Jamendo.
+  |
+  */
+
+  if (artistId?.startsWith("internal-artist-")) {
+    const query: Record<string, unknown> = {
+      source: "s3",
+
+      artistId,
+
+      /*
+      |--------------------------------------------------------------------------
+      | User-facing artist page should only expose visible ready tracks
+      |--------------------------------------------------------------------------
+      */
+
+      processingStatus: "ready",
+
+      isDiscoverable: true,
+    };
+
+    /*
     |--------------------------------------------------------------------------
-    | Separate local visibility flag from Jamendo options
+    | Optional album filter
     |--------------------------------------------------------------------------
     */
 
-  const {
-    isDiscoverable = true,
+    if (albumId) {
+      query.albumId = albumId;
+    }
 
-    ...jamendoInput
-  } = input;
+    const tracks = await Track.find(query)
+      .sort({
+        createdAt: -1,
+      })
+      .limit(input.limit ?? 50);
+
+    return tracks.map(mapTrackToDTO);
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | JAMENDO FLOW
+  |--------------------------------------------------------------------------
+  */
+
+  const jamendoInput = {
+    ...restInput,
+
+    ...(artistId
+      ? {
+          artistId,
+        }
+      : {}),
+
+    ...(albumId
+      ? {
+          albumId,
+        }
+      : {}),
+  };
 
   const jamendoTracks = await fetchJamendoTracks(jamendoInput);
 
   /*
-    |--------------------------------------------------------------------------
-    | Save with correct visibility
-    |--------------------------------------------------------------------------
-    */
+  |--------------------------------------------------------------------------
+  | Persist Jamendo tracks
+  |--------------------------------------------------------------------------
+  */
 
   await saveTracks(jamendoTracks, isDiscoverable);
 
@@ -327,20 +396,19 @@ export const discoverTracks = async (
   });
 
   /*
-    |--------------------------------------------------------------------------
-    | Preserve Jamendo response order
-    |--------------------------------------------------------------------------
-    */
+  |--------------------------------------------------------------------------
+  | Preserve Jamendo response order
+  |--------------------------------------------------------------------------
+  */
 
   const trackMap = new Map(
     storedTracks.map((track) => [track.externalId, track]),
   );
 
-  const orderedTracks = jamendoTracks
+  return jamendoTracks
     .map((track) => trackMap.get(track.externalId))
-    .filter((track): track is TrackDocument => Boolean(track));
-
-  return mapTracksToDTO(orderedTracks);
+    .filter((track): track is NonNullable<typeof track> => Boolean(track))
+    .map(mapTrackToDTO);
 };
 
 /*

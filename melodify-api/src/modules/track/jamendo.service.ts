@@ -2,6 +2,8 @@ import { env } from "../../config/env.js";
 
 import { ApiError } from "../../utils/ApiError.js";
 
+import { Track } from "./track.model.js";
+
 import type { JamendoTracksResponse, NormalizedTrack } from "./track.types.js";
 
 /*
@@ -236,7 +238,115 @@ export const fetchJamendoArtistById = async (
 
   /*
     |--------------------------------------------------------------------------
-    | Cache first
+    | Internal S3 artist
+    |--------------------------------------------------------------------------
+    |
+    | Example:
+    |
+    | internal-artist-arijit-singh
+    |
+    | This is NOT a Jamendo numeric artist id.
+    |
+    */
+
+  if (normalizedArtistId.startsWith("internal-artist-")) {
+    /*
+      |--------------------------------------------------------------------------
+      | First try local S3 catalog
+      |--------------------------------------------------------------------------
+      */
+
+    const localTrack = await Track.findOne({
+      source: "s3",
+
+      artistId: normalizedArtistId,
+
+      processingStatus: "ready",
+
+      isDiscoverable: true,
+    })
+      .sort({
+        createdAt: -1,
+      })
+      .lean();
+
+    /*
+      |--------------------------------------------------------------------------
+      | Local artist exists
+      |--------------------------------------------------------------------------
+      */
+
+    if (localTrack) {
+      const artist: JamendoArtist = {
+        artistId: normalizedArtistId,
+
+        artistName: localTrack.artistName,
+
+        /*
+            |--------------------------------------------------------------------------
+            | Track cover can act as artist image
+            |--------------------------------------------------------------------------
+            */
+
+        imageUrl: localTrack.imageUrl ?? "",
+      };
+
+      return artist;
+    }
+
+    /*
+      |--------------------------------------------------------------------------
+      | No local artist found
+      |--------------------------------------------------------------------------
+      |
+      | Convert:
+      |
+      | internal-artist-arijit-singh
+      |
+      | ↓
+      |
+      | arijit singh
+      |
+      | Then search Jamendo by artist name.
+      |
+      */
+
+    const artistSearchName = normalizedArtistId
+      .replace(/^internal-artist-/, "")
+      .replace(/-/g, " ")
+      .trim();
+
+    if (!artistSearchName) {
+      return null;
+    }
+
+    const jamendoArtists = await searchJamendoArtists({
+      search: artistSearchName,
+
+      limit: 5,
+    });
+
+    /*
+      |--------------------------------------------------------------------------
+      | Prefer exact name match
+      |--------------------------------------------------------------------------
+      */
+
+    const normalizedSearchName = artistSearchName.toLowerCase();
+
+    const exactMatch = jamendoArtists.find(
+      (artist) =>
+        artist.artistName.trim().toLowerCase() === normalizedSearchName,
+    );
+
+    const artist = exactMatch ?? jamendoArtists[0] ?? null;
+
+    return artist;
+  }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Normal Jamendo artist ID
     |--------------------------------------------------------------------------
     */
 
@@ -268,6 +378,7 @@ export const fetchJamendoArtistById = async (
     if (!response.ok) {
       throw new ApiError(
         502,
+
         `Jamendo artist API request failed with status ${response.status}`,
       );
     }
@@ -277,6 +388,7 @@ export const fetchJamendoArtistById = async (
     if (data.headers.status !== "success") {
       throw new ApiError(
         502,
+
         data.headers.error_message || "Jamendo artist API returned an error",
       );
     }
@@ -313,7 +425,11 @@ export const fetchJamendoArtistById = async (
       throw error;
     }
 
-    throw new ApiError(502, "Unable to communicate with Jamendo artist API");
+    throw new ApiError(
+      502,
+
+      "Unable to communicate with Jamendo artist API",
+    );
   }
 };
 
