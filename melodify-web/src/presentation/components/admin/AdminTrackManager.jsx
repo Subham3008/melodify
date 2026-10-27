@@ -6,7 +6,10 @@ import {
   deleteAdminTrack,
   getAdminTracks,
   retryAdminTrack,
+  updateAdminTrackDiscoverability,
 } from "@/infrastructure/api/admin-track.api";
+
+import AdminTrackEditModal from "./AdminTrackEditModal";
 
 const STATUS_OPTIONS = [
   {
@@ -64,7 +67,7 @@ const getStatusLabel = (status) => {
     return "Failed";
   }
 
-  return status;
+  return status || "Unknown";
 };
 
 const formatDate = (value) => {
@@ -92,6 +95,8 @@ export default function AdminTrackManager() {
   const [actionTrackId, setActionTrackId] = useState(null);
 
   const [error, setError] = useState("");
+
+  const [editingTrack, setEditingTrack] = useState(null);
 
   /*
   |--------------------------------------------------------------------------
@@ -129,7 +134,11 @@ export default function AdminTrackManager() {
       } catch (err) {
         console.error("Unable to load admin tracks:", err);
 
-        setError(err?.message ?? "Unable to load tracks.");
+        setError(
+          err?.response?.data?.message ??
+            err?.message ??
+            "Unable to load tracks.",
+        );
       } finally {
         if (!silent) {
           setLoading(false);
@@ -187,7 +196,61 @@ export default function AdminTrackManager() {
         silent: true,
       });
     } catch (err) {
-      setError(err?.message ?? "Unable to retry processing.");
+      setError(
+        err?.response?.data?.message ??
+          err?.message ??
+          "Unable to retry processing.",
+      );
+    } finally {
+      setActionTrackId(null);
+    }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Show / hide from Discover
+  |--------------------------------------------------------------------------
+  */
+
+  const handleDiscoverability = async (track) => {
+    const nextValue = !track.isDiscoverable;
+
+    /*
+      |--------------------------------------------------------------------------
+      | Only ready tracks can become visible
+      |--------------------------------------------------------------------------
+      */
+
+    if (nextValue && track.processingStatus !== "ready") {
+      setError("Only ready tracks can be shown in Discover.");
+
+      return;
+    }
+
+    try {
+      setActionTrackId(track.id);
+
+      setError("");
+
+      const result = await updateAdminTrackDiscoverability(track.id, nextValue);
+
+      setTracks((current) =>
+        current.map((item) =>
+          item.id === track.id
+            ? {
+                ...item,
+
+                isDiscoverable: result?.isDiscoverable ?? nextValue,
+              }
+            : item,
+        ),
+      );
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ??
+          err?.message ??
+          "Unable to update track visibility.",
+      );
     } finally {
       setActionTrackId(null);
     }
@@ -224,7 +287,11 @@ export default function AdminTrackManager() {
         page: nextPage,
       });
     } catch (err) {
-      setError(err?.message ?? "Unable to delete track.");
+      setError(
+        err?.response?.data?.message ??
+          err?.message ??
+          "Unable to delete track.",
+      );
     } finally {
       setActionTrackId(null);
     }
@@ -304,6 +371,8 @@ export default function AdminTrackManager() {
               track.processingStatus === "uploaded" ||
               track.processingStatus === "processing";
 
+            const canShow = track.processingStatus === "ready";
+
             return (
               <div
                 key={track.id}
@@ -338,9 +407,17 @@ export default function AdminTrackManager() {
                   )}
 
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-white">
-                      {track.title}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-semibold text-white">
+                        {track.title}
+                      </p>
+
+                      {!track.isDiscoverable && (
+                        <span className="shrink-0 rounded-full border border-neutral-700 bg-neutral-800 px-2 py-0.5 text-[10px] font-semibold text-neutral-400">
+                          Hidden
+                        </span>
+                      )}
+                    </div>
 
                     <p className="mt-0.5 truncate text-sm text-neutral-400">
                       {track.artistName}
@@ -360,6 +437,7 @@ export default function AdminTrackManager() {
                   <span
                     className={`
                           inline-flex
+                          items-center
                           rounded-full
                           border
                           px-3
@@ -390,7 +468,67 @@ export default function AdminTrackManager() {
 
                 {/* ACTIONS */}
 
-                <div className="flex items-center gap-2 lg:justify-end">
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                  {/* EDIT */}
+
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setEditingTrack(track)}
+                    className="
+                          rounded-full
+                          border
+                          border-neutral-600
+                          px-4
+                          py-2
+                          text-xs
+                          font-semibold
+                          text-white
+                          transition
+                          hover:border-neutral-400
+                          hover:bg-neutral-800
+                          disabled:opacity-40
+                        "
+                  >
+                    Edit
+                  </button>
+
+                  {/* SHOW / HIDE */}
+
+                  <button
+                    type="button"
+                    disabled={busy || (!track.isDiscoverable && !canShow)}
+                    onClick={() => handleDiscoverability(track)}
+                    title={
+                      !track.isDiscoverable && !canShow
+                        ? "Only ready tracks can be shown"
+                        : track.isDiscoverable
+                          ? "Hide from Discover"
+                          : "Show in Discover"
+                    }
+                    className={`
+                          rounded-full
+                          border
+                          px-4
+                          py-2
+                          text-xs
+                          font-semibold
+                          transition
+                          disabled:cursor-not-allowed
+                          disabled:opacity-30
+
+                          ${
+                            track.isDiscoverable
+                              ? "border-yellow-500/30 text-yellow-300 hover:bg-yellow-500/10"
+                              : "border-[#1ed760]/30 text-[#1ed760] hover:bg-[#1ed760]/10"
+                          }
+                        `}
+                  >
+                    {track.isDiscoverable ? "Hide" : "Show"}
+                  </button>
+
+                  {/* RETRY */}
+
                   {track.processingStatus === "failed" && (
                     <button
                       type="button"
@@ -414,6 +552,8 @@ export default function AdminTrackManager() {
                       {busy ? "Retrying..." : "Retry"}
                     </button>
                   )}
+
+                  {/* DELETE */}
 
                   <button
                     type="button"
@@ -482,6 +622,36 @@ export default function AdminTrackManager() {
             Next
           </button>
         </div>
+      )}
+
+      {/* EDIT MODAL */}
+
+      {editingTrack && (
+        <AdminTrackEditModal
+          track={editingTrack}
+          onClose={() => setEditingTrack(null)}
+          onUpdated={(updatedTrack) => {
+            setTracks((current) =>
+              current.map((item) =>
+                item.id === updatedTrack.id
+                  ? {
+                      ...item,
+                      ...updatedTrack,
+                    }
+                  : item,
+              ),
+            );
+
+            setEditingTrack((current) =>
+              current?.id === updatedTrack.id
+                ? {
+                    ...current,
+                    ...updatedTrack,
+                  }
+                : current,
+            );
+          }}
+        />
       )}
     </div>
   );

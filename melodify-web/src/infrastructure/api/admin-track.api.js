@@ -188,3 +188,103 @@ export async function deleteAdminTrack(
     response.data
   );
 }
+
+
+/*
+|--------------------------------------------------------------------------
+| Update track metadata
+|--------------------------------------------------------------------------
+*/
+
+export async function updateAdminTrack(
+  trackId,
+  {
+    title,
+    artistName,
+    albumName,
+    coverFile,
+    coverImageUrl,
+  },
+) {
+  const formData =
+    new FormData();
+
+  formData.append(
+    "title",
+    title,
+  );
+
+  formData.append(
+    "artistName",
+    artistName,
+  );
+
+  formData.append(
+    "albumName",
+    albumName ?? "",
+  );
+
+  /*
+  |--------------------------------------------------------------------------
+  | Cover replacement is optional
+  |--------------------------------------------------------------------------
+  */
+
+  if (coverFile) {
+    formData.append(
+      "cover",
+      coverFile,
+    );
+  } else if (
+    coverImageUrl?.trim()
+  ) {
+    formData.append(
+      "imageUrl",
+      coverImageUrl.trim(),
+    );
+  }
+
+  const response =
+    await apiClient.patch(
+      `/admin/tracks/${trackId}`,
+
+      formData,
+
+      {
+        headers: {
+          "Content-Type":
+            undefined,
+        },
+      },
+    );
+
+  return (
+    response.data?.data ??
+    response.data
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Show / hide track
+|--------------------------------------------------------------------------
+*/
+
+export async function updateAdminTrackDiscoverability(
+  trackId,
+  isDiscoverable,
+) {
+  const response =
+    await apiClient.patch(
+      `/admin/tracks/${trackId}/discoverability`,
+
+      {
+        isDiscoverable,
+      },
+    );
+
+  return (
+    response.data?.data ??
+    response.data
+  );
+}
