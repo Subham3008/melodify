@@ -6,7 +6,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 export default function TrackSearchBar() {
   const router = useRouter();
+
   const pathname = usePathname();
+
   const searchParams = useSearchParams();
 
   const urlSearch = searchParams.get("search") ?? "";
@@ -43,21 +45,21 @@ export default function TrackSearchBar() {
     const target = query ? `/?search=${encodeURIComponent(query)}` : "/";
 
     /*
-    |--------------------------------------------------------------------------
-    | Already on same search
-    |--------------------------------------------------------------------------
-    */
+      |--------------------------------------------------------------------------
+      | Already on same search
+      |--------------------------------------------------------------------------
+      */
 
     if (pathname === "/" && query === urlSearch.trim()) {
       return;
     }
 
     /*
-    |--------------------------------------------------------------------------
-    | Same page → replace
-    | Other page → push to Home
-    |--------------------------------------------------------------------------
-    */
+      |--------------------------------------------------------------------------
+      | Same page → replace
+      | Other page → push to Home
+      |--------------------------------------------------------------------------
+      */
 
     if (pathname === "/") {
       router.replace(target, {
@@ -115,7 +117,7 @@ export default function TrackSearchBar() {
 
     userTypedRef.current = false;
 
-    navigateToSearch(value, true);
+    navigateToSearch(value);
   };
 
   /*
@@ -130,10 +132,10 @@ export default function TrackSearchBar() {
     setValue("");
 
     /*
-    |--------------------------------------------------------------------------
-    | Clear search → Home catalog
-    |--------------------------------------------------------------------------
-    */
+      |--------------------------------------------------------------------------
+      | Clear search → Home catalog
+      |--------------------------------------------------------------------------
+      */
 
     if (pathname === "/") {
       router.replace("/", {
@@ -172,7 +174,7 @@ export default function TrackSearchBar() {
       {/* INPUT */}
 
       <input
-        type="search"
+        type="text"
         value={value}
         onChange={handleChange}
         placeholder="Search songs, artists or albums"
