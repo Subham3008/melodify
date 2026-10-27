@@ -1,7 +1,4 @@
-const API_URL =
-  process.env
-    .NEXT_PUBLIC_API_URL ??
-  "http://localhost:4000/api/v1";
+import { apiClient } from "@/infrastructure/api/apiClient";
 
 /*
 |--------------------------------------------------------------------------
@@ -65,32 +62,24 @@ export async function uploadAdminTrack({
   }
 
   const response =
-    await fetch(
-      `${API_URL}/admin/tracks`,
+    await apiClient.post(
+      "/admin/tracks",
+      formData,
       {
-        method: "POST",
+        /*
+        |--------------------------------------------------------------------------
+        | Let browser create multipart boundary
+        |--------------------------------------------------------------------------
+        */
 
-        credentials:
-          "include",
-
-        body: formData,
+        headers: {
+          "Content-Type":
+            undefined,
+        },
       },
     );
 
-  const data =
-    await response
-      .json()
-      .catch(() => null);
-
-  if (!response.ok) {
-    throw new Error(
-      data?.message ??
-      data?.error ??
-      "Unable to upload track.",
-    );
-  }
-
-  return data;
+  return response.data;
 }
 
 /*
@@ -103,30 +92,99 @@ export async function getAdminTrackProcessingStatus(
   trackId,
 ) {
   const response =
-    await fetch(
-      `${API_URL}/admin/tracks/${trackId}/status`,
+    await apiClient.get(
+      `/admin/tracks/${trackId}/status`,
       {
-        method: "GET",
-
-        credentials:
-          "include",
-
-        cache: "no-store",
+        params: {
+          _t: Date.now(),
+        },
       },
     );
 
-  const data =
-    await response
-      .json()
-      .catch(() => null);
+  return (
+    response.data?.data ??
+    response.data
+  );
+}
 
-  if (!response.ok) {
-    throw new Error(
-      data?.message ??
-      data?.error ??
-      "Unable to get track processing status.",
+/*
+|--------------------------------------------------------------------------
+| List uploaded tracks
+|--------------------------------------------------------------------------
+*/
+
+export async function getAdminTracks({
+  page = 1,
+  limit = 20,
+  status = "",
+} = {}) {
+  const response =
+    await apiClient.get(
+      "/admin/tracks",
+      {
+        params: {
+          page,
+          limit,
+
+          ...(status
+            ? {
+              status,
+            }
+            : {}),
+
+          /*
+          |--------------------------------------------------------------------------
+          | Avoid stale browser/proxy response
+          |--------------------------------------------------------------------------
+          */
+
+          _t: Date.now(),
+        },
+      },
     );
-  }
 
-  return data;
+  return (
+    response.data?.data ??
+    response.data
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Retry failed track
+|--------------------------------------------------------------------------
+*/
+
+export async function retryAdminTrack(
+  trackId,
+) {
+  const response =
+    await apiClient.post(
+      `/admin/tracks/${trackId}/retry`,
+    );
+
+  return (
+    response.data?.data ??
+    response.data
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Delete uploaded track
+|--------------------------------------------------------------------------
+*/
+
+export async function deleteAdminTrack(
+  trackId,
+) {
+  const response =
+    await apiClient.delete(
+      `/admin/tracks/${trackId}`,
+    );
+
+  return (
+    response.data?.data ??
+    response.data
+  );
 }
