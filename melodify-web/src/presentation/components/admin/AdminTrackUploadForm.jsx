@@ -50,7 +50,7 @@ export default function AdminTrackUploadForm() {
 
   /*
   |--------------------------------------------------------------------------
-  | Form input handler
+  | Input change
   |--------------------------------------------------------------------------
   */
 
@@ -65,7 +65,7 @@ export default function AdminTrackUploadForm() {
 
   /*
   |--------------------------------------------------------------------------
-  | Audio file + duration detection
+  | Audio duration
   |--------------------------------------------------------------------------
   */
 
@@ -73,7 +73,9 @@ export default function AdminTrackUploadForm() {
     const file = event.target.files?.[0] ?? null;
 
     setAudioFile(file);
+
     setDurationSeconds(null);
+
     setError("");
 
     if (!file) {
@@ -92,9 +94,9 @@ export default function AdminTrackUploadForm() {
       const duration = Math.ceil(audio.duration);
 
       if (!Number.isFinite(duration) || duration <= 0) {
-        setDurationSeconds(null);
-
         setError("Unable to detect audio duration.");
+
+        setDurationSeconds(null);
       } else {
         setDurationSeconds(duration);
       }
@@ -113,7 +115,7 @@ export default function AdminTrackUploadForm() {
 
   /*
   |--------------------------------------------------------------------------
-  | Reset form
+  | Reset
   |--------------------------------------------------------------------------
   */
 
@@ -170,8 +172,8 @@ export default function AdminTrackUploadForm() {
       return;
     }
 
-    if (!durationSeconds || durationSeconds <= 0) {
-      setError("Unable to detect valid audio duration.");
+    if (!durationSeconds) {
+      setError("Unable to detect audio duration.");
 
       return;
     }
@@ -215,229 +217,256 @@ export default function AdminTrackUploadForm() {
     }
   };
 
+  const inputClass = `
+    w-full
+    rounded-lg
+    border
+    border-neutral-700
+    bg-[#121212]
+    px-3
+    py-2.5
+    text-sm
+    text-white
+    outline-none
+    transition
+    placeholder:text-neutral-500
+    focus:border-[#1ed760]
+  `;
+
   return (
-    <div className="mx-auto w-full max-w-3xl">
-      <div className="rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-xl">
-        <div className="mb-6">
-          <p className="text-sm font-medium text-green-400">Melodify Admin</p>
+    <form onSubmit={handleSubmit} className="space-y-3.5">
+      {/* TITLE */}
 
-          <h1 className="mt-1 text-2xl font-bold text-white">Upload Song</h1>
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold text-neutral-300">
+          Song title
+        </label>
 
-          <p className="mt-2 text-sm text-neutral-400">
-            Upload a song to S3 and start HLS processing.
-          </p>
+        <input
+          name="title"
+          value={form.title}
+          onChange={handleChange}
+          placeholder="Song title"
+          disabled={uploading}
+          className={inputClass}
+        />
+      </div>
+
+      {/* ARTIST + ALBUM */}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-neutral-300">
+            Artist
+          </label>
+
+          <input
+            name="artistName"
+            value={form.artistName}
+            onChange={handleChange}
+            placeholder="Artist"
+            disabled={uploading}
+            className={inputClass}
+          />
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Song title */}
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-neutral-300">
+            Album
+          </label>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-neutral-200">
-              Song title
-            </label>
-
-            <input
-              name="title"
-              value={form.title}
-              onChange={handleChange}
-              placeholder="Example: My Song"
-              disabled={uploading}
-              className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-green-500 disabled:opacity-50"
-            />
-          </div>
-
-          {/* Artist */}
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-neutral-200">
-              Artist
-            </label>
-
-            <input
-              name="artistName"
-              value={form.artistName}
-              onChange={handleChange}
-              placeholder="Artist name"
-              disabled={uploading}
-              className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-green-500 disabled:opacity-50"
-            />
-          </div>
-
-          {/* Album */}
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-neutral-200">
-              Album
-            </label>
-
-            <input
-              name="albumName"
-              value={form.albumName}
-              onChange={handleChange}
-              placeholder="Optional"
-              disabled={uploading}
-              className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-green-500 disabled:opacity-50"
-            />
-          </div>
-
-          {/* Audio */}
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-neutral-200">
-              Audio file
-            </label>
-
-            <input
-              id="admin-track-audio"
-              type="file"
-              accept="audio/*"
-              disabled={uploading}
-              onChange={handleAudioChange}
-              className="block w-full rounded-xl border border-dashed border-white/20 bg-neutral-950 p-4 text-sm text-neutral-300 file:mr-4 file:rounded-lg file:border-0 file:bg-green-500 file:px-4 file:py-2 file:font-medium file:text-black"
-            />
-
-            {audioFile && (
-              <div className="mt-2 space-y-1">
-                <p className="text-xs text-neutral-400">
-                  Selected: {audioFile.name}
-                </p>
-
-                {durationSeconds ? (
-                  <p className="text-xs text-green-400">
-                    Duration detected: {durationSeconds} seconds
-                  </p>
-                ) : (
-                  <p className="text-xs text-yellow-400">
-                    Reading audio duration...
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Cover file */}
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-neutral-200">
-              Cover image
-            </label>
-
-            <input
-              id="admin-track-cover"
-              type="file"
-              accept="image/*"
-              disabled={uploading}
-              onChange={(event) => {
-                const file = event.target.files?.[0] ?? null;
-
-                setCoverFile(file);
-
-                if (file) {
-                  setForm((current) => ({
-                    ...current,
-
-                    coverImageUrl: "",
-                  }));
-                }
-              }}
-              className="block w-full rounded-xl border border-dashed border-white/20 bg-neutral-950 p-4 text-sm text-neutral-300 file:mr-4 file:rounded-lg file:border-0 file:bg-white file:px-4 file:py-2 file:font-medium file:text-black"
-            />
-          </div>
-
-          {/* Preview */}
-
-          {coverPreview && (
-            <div className="flex items-center gap-4">
-              <img
-                src={coverPreview}
-                alt="Cover preview"
-                className="h-24 w-24 rounded-xl object-cover"
-              />
-
-              <div>
-                <p className="text-sm font-medium text-white">Cover preview</p>
-
-                <p className="text-xs text-neutral-500">{coverFile?.name}</p>
-              </div>
-            </div>
-          )}
-
-          {/* OR */}
-
-          <div className="relative flex items-center py-1">
-            <div className="grow border-t border-white/10" />
-
-            <span className="mx-4 text-xs uppercase text-neutral-600">or</span>
-
-            <div className="grow border-t border-white/10" />
-          </div>
-
-          {/* Cover URL */}
-
-          <div>
-            <label className="mb-2 block text-sm font-medium text-neutral-200">
-              External cover URL
-            </label>
-
-            <input
-              name="coverImageUrl"
-              value={form.coverImageUrl}
-              onChange={handleChange}
-              placeholder="https://example.com/cover.jpg"
-              disabled={uploading || Boolean(coverFile)}
-              className="w-full rounded-xl border border-white/10 bg-neutral-950 px-4 py-3 text-white outline-none transition focus:border-green-500 disabled:cursor-not-allowed disabled:opacity-40"
-            />
-
-            {coverFile && (
-              <p className="mt-2 text-xs text-neutral-500">
-                Uploaded cover file will be used.
-              </p>
-            )}
-          </div>
-
-          {/* Error */}
-
-          {error && (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              {error}
-            </div>
-          )}
-
-          {/* Success */}
-
-          {uploadedTrack && (
-            <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4">
-              <p className="font-medium text-green-400">
-                Track uploaded successfully ✅
-              </p>
-
-              <div className="mt-2 space-y-1 text-sm text-neutral-300">
-                {uploadedTrack.title && <p>Song: {uploadedTrack.title}</p>}
-
-                {uploadedTrack.id && <p>Track ID: {uploadedTrack.id}</p>}
-
-                {uploadedTrack.processingStatus && (
-                  <p>Processing: {uploadedTrack.processingStatus}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Submit */}
-
-          <button
-            type="submit"
-            disabled={uploading || (audioFile && !durationSeconds)}
-            className="flex w-full items-center justify-center rounded-full bg-green-500 px-6 py-3 font-semibold text-black transition hover:bg-green-400 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {uploading
-              ? "Uploading song..."
-              : audioFile && !durationSeconds
-                ? "Reading audio..."
-                : "Upload Song"}
-          </button>
-        </form>
+          <input
+            name="albumName"
+            value={form.albumName}
+            onChange={handleChange}
+            placeholder="Optional"
+            disabled={uploading}
+            className={inputClass}
+          />
+        </div>
       </div>
-    </div>
+
+      {/* AUDIO */}
+
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold text-neutral-300">
+          Audio file
+        </label>
+
+        <input
+          id="admin-track-audio"
+          type="file"
+          accept="audio/*"
+          disabled={uploading}
+          onChange={handleAudioChange}
+          className="
+            block
+            w-full
+            rounded-lg
+            border
+            border-dashed
+            border-neutral-700
+            bg-[#121212]
+            p-2
+            text-xs
+            text-neutral-400
+            file:mr-3
+            file:rounded-md
+            file:border-0
+            file:bg-[#1ed760]
+            file:px-3
+            file:py-2
+            file:text-xs
+            file:font-bold
+            file:text-black
+          "
+        />
+
+        {audioFile && (
+          <div className="mt-1.5 flex items-center justify-between gap-3 text-xs">
+            <p className="truncate text-neutral-400">{audioFile.name}</p>
+
+            {durationSeconds && (
+              <p className="shrink-0 text-[#1ed760]">{durationSeconds}s</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* COVER */}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-neutral-300">
+            Cover image
+          </label>
+
+          <input
+            id="admin-track-cover"
+            type="file"
+            accept="image/*"
+            disabled={uploading}
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+
+              setCoverFile(file);
+
+              if (file) {
+                setForm((current) => ({
+                  ...current,
+                  coverImageUrl: "",
+                }));
+              }
+            }}
+            className="
+              block
+              w-full
+              rounded-lg
+              border
+              border-dashed
+              border-neutral-700
+              bg-[#121212]
+              p-2
+              text-xs
+              text-neutral-400
+              file:mr-2
+              file:rounded-md
+              file:border-0
+              file:bg-neutral-200
+              file:px-3
+              file:py-2
+              file:text-xs
+              file:font-semibold
+              file:text-black
+            "
+          />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold text-neutral-300">
+            Or cover URL
+          </label>
+
+          <input
+            name="coverImageUrl"
+            value={form.coverImageUrl}
+            onChange={handleChange}
+            placeholder="https://..."
+            disabled={uploading || Boolean(coverFile)}
+            className={inputClass}
+          />
+        </div>
+      </div>
+
+      {/* COVER PREVIEW */}
+
+      {coverPreview && (
+        <div className="flex items-center gap-3 rounded-lg bg-[#121212] p-2">
+          <img
+            src={coverPreview}
+            alt="Cover preview"
+            className="h-12 w-12 rounded-md object-cover"
+          />
+
+          <p className="min-w-0 truncate text-xs text-neutral-400">
+            {coverFile?.name}
+          </p>
+        </div>
+      )}
+
+      {/* ERROR */}
+
+      {error && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+          {error}
+        </div>
+      )}
+
+      {/* SUCCESS */}
+
+      {uploadedTrack && (
+        <div className="rounded-lg border border-[#1ed760]/30 bg-[#1ed760]/10 px-3 py-2">
+          <p className="text-sm font-semibold text-[#1ed760]">
+            Track uploaded successfully ✓
+          </p>
+
+          {uploadedTrack.processingStatus && (
+            <p className="mt-1 text-xs text-neutral-400">
+              Processing: {uploadedTrack.processingStatus}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* BUTTON */}
+
+      <button
+        type="submit"
+        disabled={uploading || (audioFile && !durationSeconds)}
+        className="
+          flex
+          w-full
+          items-center
+          justify-center
+          rounded-full
+          bg-[#1ed760]
+          px-4
+          py-2.5
+          text-sm
+          font-bold
+          text-black
+          transition
+          hover:bg-[#1fdf64]
+          disabled:cursor-not-allowed
+          disabled:opacity-50
+        "
+      >
+        {uploading
+          ? "Uploading..."
+          : audioFile && !durationSeconds
+            ? "Reading audio..."
+            : "Upload Song"}
+      </button>
+    </form>
   );
 }

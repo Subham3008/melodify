@@ -10,12 +10,14 @@ export const metadata = {
 
 export default function RootLayout({
   children,
+  modal,
 }) {
   return (
     <html lang="en">
       <body>
         <AppProviders>
           {children}
+          {modal}
         </AppProviders>
       </body>
     </html>

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAuthStore } from "@/presentation/stores/auth.store";
 import TrackSearchBar from "@/presentation/components/search/TrackSearchBar";
+import AdminUploadButton from "@/presentation/components/admin/AdminUploadButton";
 
 export default function MusicTopBar() {
   const [profileOpen, setProfileOpen] = useState(false);
@@ -140,227 +141,240 @@ export default function MusicTopBar() {
         </h2>
       </div>
 
+      {/* SEARCH */}
+
       <div
         className="
-            mx-6
-            hidden
-            min-w-0
-            flex-1
-            justify-center
-            md:flex
-          "
+          mx-6
+          hidden
+          min-w-0
+          flex-1
+          justify-center
+          md:flex
+        "
       >
         <TrackSearchBar />
       </div>
 
-      {/* PROFILE */}
+      {/* RIGHT ACTIONS */}
 
       <div
-        ref={dropdownRef}
         className="
-          relative
+          flex
+          items-center
+          gap-3
         "
       >
-        {/* PROFILE BUTTON */}
+        {/* ADMIN ONLY */}
 
-        <button
-          type="button"
-          onClick={() => setProfileOpen((current) => !current)}
-          className="
-            flex
-            h-11
-            w-11
-            items-center
-            justify-center
-            overflow-hidden
-            rounded-full
-            bg-[#282828]
-            font-bold
-            text-white
-            ring-2
-            ring-transparent
-            transition
-            hover:scale-105
-            hover:ring-neutral-600
-            focus:outline-none
-            focus:ring-neutral-500
-          "
-          aria-label="Open profile menu"
-          aria-expanded={profileOpen}
-        >
-          {profileImage ? (
-            <img
-              src={profileImage}
-              alt={user.name || "Profile"}
-              className="
-                h-full
-                w-full
-                object-cover
-              "
-              onError={(event) => {
-                event.currentTarget.style.display = "none";
+        <AdminUploadButton />
 
-                event.currentTarget.nextElementSibling?.classList.remove(
-                  "hidden",
-                );
-              }}
-            />
-          ) : null}
+        {/* PROFILE */}
 
-          <span
-            className={`
+        <div ref={dropdownRef} className="relative">
+          {/* PROFILE BUTTON */}
+
+          <button
+            type="button"
+            onClick={() => setProfileOpen((current) => !current)}
+            className="
               flex
-              h-full
-              w-full
+              h-11
+              w-11
               items-center
               justify-center
-              bg-[#1ed760]
-              text-base
-              font-black
-              text-black
-
-              ${profileImage ? "hidden" : ""}
-            `}
-          >
-            {initial}
-          </span>
-        </button>
-
-        {/* DROPDOWN */}
-
-        {profileOpen && (
-          <div
-            className="
-              absolute
-              top-[calc(100%+10px)]
-              right-0
-              z-50
-              w-70
               overflow-hidden
-              rounded-xl
-              border
-              border-neutral-700
+              rounded-full
               bg-[#282828]
-              shadow-2xl
+              font-bold
+              text-white
+              ring-2
+              ring-transparent
+              transition
+              hover:scale-105
+              hover:ring-neutral-600
+              focus:outline-none
+              focus:ring-neutral-500
             "
+            aria-label="Open profile menu"
+            aria-expanded={profileOpen}
           >
-            {/* USER DETAILS */}
+            {profileImage ? (
+              <img
+                src={profileImage}
+                alt={user.name || "Profile"}
+                className="
+                  h-full
+                  w-full
+                  object-cover
+                "
+                onError={(event) => {
+                  event.currentTarget.style.display = "none";
 
+                  event.currentTarget.nextElementSibling?.classList.remove(
+                    "hidden",
+                  );
+                }}
+              />
+            ) : null}
+
+            <span
+              className={`
+                flex
+                h-full
+                w-full
+                items-center
+                justify-center
+                bg-[#1ed760]
+                text-base
+                font-black
+                text-black
+
+                ${profileImage ? "hidden" : ""}
+              `}
+            >
+              {initial}
+            </span>
+          </button>
+
+          {/* DROPDOWN */}
+
+          {profileOpen && (
             <div
               className="
-                flex
-                items-center
-                gap-3
-                px-4
-                py-4
+                absolute
+                top-[calc(100%+10px)]
+                right-0
+                z-50
+                w-70
+                overflow-hidden
+                rounded-xl
+                border
+                border-neutral-700
+                bg-[#282828]
+                shadow-2xl
               "
             >
-              {/* SMALL AVATAR */}
+              {/* USER DETAILS */}
 
               <div
                 className="
                   flex
-                  h-12
-                  w-12
-                  shrink-0
                   items-center
-                  justify-center
-                  overflow-hidden
-                  rounded-full
-                  bg-[#1ed760]
-                  font-black
-                  text-black
+                  gap-3
+                  px-4
+                  py-4
                 "
               >
-                {profileImage ? (
-                  <img
-                    src={profileImage}
-                    alt={user.name || "Profile"}
+                {/* SMALL AVATAR */}
+
+                <div
+                  className="
+                    flex
+                    h-12
+                    w-12
+                    shrink-0
+                    items-center
+                    justify-center
+                    overflow-hidden
+                    rounded-full
+                    bg-[#1ed760]
+                    font-black
+                    text-black
+                  "
+                >
+                  {profileImage ? (
+                    <img
+                      src={profileImage}
+                      alt={user.name || "Profile"}
+                      className="
+                        h-full
+                        w-full
+                        object-cover
+                      "
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+
+                        event.currentTarget.nextElementSibling?.classList.remove(
+                          "hidden",
+                        );
+                      }}
+                    />
+                  ) : null}
+
+                  <span className={profileImage ? "hidden" : ""}>
+                    {initial}
+                  </span>
+                </div>
+
+                {/* NAME + EMAIL */}
+
+                <div
+                  className="
+                    min-w-0
+                  "
+                >
+                  <p
                     className="
-                      h-full
-                      w-full
-                      object-cover
+                      truncate
+                      text-sm
+                      font-bold
+                      text-white
                     "
-                    onError={(event) => {
-                      event.currentTarget.style.display = "none";
+                  >
+                    {user.name || "User"}
+                  </p>
 
-                      event.currentTarget.nextElementSibling?.classList.remove(
-                        "hidden",
-                      );
-                    }}
-                  />
-                ) : null}
-
-                <span className={profileImage ? "hidden" : ""}>{initial}</span>
+                  <p
+                    className="
+                      mt-1
+                      truncate
+                      text-xs
+                      text-neutral-400
+                    "
+                  >
+                    {user.email}
+                  </p>
+                </div>
               </div>
 
-              {/* NAME + EMAIL */}
+              {/* SEPARATOR */}
 
               <div
                 className="
-                  min-w-0
+                  mx-3
+                  border-t
+                  border-neutral-700
                 "
-              >
-                <p
-                  className="
-                    truncate
-                    text-sm
-                    font-bold
-                    text-white
-                  "
-                >
-                  {user.name || "User"}
-                </p>
+              />
 
-                <p
+              {/* LOGOUT */}
+
+              <div className="p-2">
+                <button
+                  type="button"
+                  onClick={handleLogout}
                   className="
-                    mt-1
-                    truncate
-                    text-xs
-                    text-neutral-400
+                    flex
+                    w-full
+                    items-center
+                    rounded-lg
+                    px-3
+                    py-3
+                    text-left
+                    text-sm
+                    font-semibold
+                    text-white
+                    transition
+                    hover:bg-[#3e3e3e]
                   "
                 >
-                  {user.email}
-                </p>
+                  Logout
+                </button>
               </div>
             </div>
-
-            {/* SEPARATOR */}
-
-            <div
-              className="
-                mx-3
-                border-t
-                border-neutral-700
-              "
-            />
-
-            {/* LOGOUT */}
-
-            <div className="p-2">
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="
-                  flex
-                  w-full
-                  items-center
-                  rounded-lg
-                  px-3
-                  py-3
-                  text-left
-                  text-sm
-                  font-semibold
-                  text-white
-                  transition
-                  hover:bg-[#3e3e3e]
-                "
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </header>
   );
