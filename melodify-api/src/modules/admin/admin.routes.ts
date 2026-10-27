@@ -9,6 +9,8 @@ import {
   getAdminTrackProcessingStatusController,
   listAdminTracksController,
   retryAdminTrackProcessingController,
+  updateAdminTrackController,
+  updateAdminTrackDiscoverabilityController,
 } from "./admin.controller.js";
 
 import { adminTrackUpload } from "./admin-upload.middleware.js";
@@ -77,6 +79,40 @@ router.post(
   requireAdmin,
 
   retryAdminTrackProcessingController,
+);
+
+/*
+|--------------------------------------------------------------------------
+| Update uploaded track metadata
+|--------------------------------------------------------------------------
+*/
+
+router.patch(
+  "/tracks/:id",
+
+  requireAuth,
+
+  requireAdmin,
+
+  adminTrackUpload.single("cover"),
+
+  updateAdminTrackController,
+);
+
+/*
+|--------------------------------------------------------------------------
+| Show / hide track from Discover
+|--------------------------------------------------------------------------
+*/
+
+router.patch(
+  "/tracks/:id/discoverability",
+
+  requireAuth,
+
+  requireAdmin,
+
+  updateAdminTrackDiscoverabilityController,
 );
 
 /*

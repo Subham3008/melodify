@@ -56,6 +56,18 @@ interface ListAdminTracksInput {
   status?: string;
 }
 
+interface UpdateAdminTrackInput {
+  title: string;
+
+  artistName: string;
+
+  albumName?: string;
+
+  coverFile?: Express.Multer.File;
+
+  imageUrl?: string;
+}
+
 /*
 |--------------------------------------------------------------------------
 | Processing status type
@@ -552,6 +564,230 @@ export const retryAdminTrackProcessing = async (trackId: string) => {
   }
 
   return getAdminTrackProcessingStatus(trackId);
+};
+
+/*
+|--------------------------------------------------------------------------
+| Update uploaded track metadata
+|--------------------------------------------------------------------------
+|
+| This updates:
+|
+| title
+| artist
+| album
+| optional cover
+|
+| Audio/HLS is NOT touched.
+|
+*/
+
+export const updateAdminTrack = async (
+  trackId: string,
+  input: UpdateAdminTrackInput,
+) => {
+  validateTrackId(trackId);
+
+  const track = await Track.findById(trackId);
+
+  if (!track) {
+    throw new ApiError(404, "Track not found");
+  }
+
+  if (track.source !== "s3") {
+    throw new ApiError(400, "Only uploaded tracks can be edited");
+  }
+
+  const title = input.title.trim();
+
+  const artistName = input.artistName.trim();
+
+  const albumName = input.albumName?.trim() || null;
+
+  if (!title) {
+    throw new ApiError(400, "Track title is required");
+  }
+
+  if (!artistName) {
+    throw new ApiError(400, "Artist name is required");
+  }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Metadata
+    |--------------------------------------------------------------------------
+    */
+
+  track.title = title;
+
+  track.artistName = artistName;
+
+  track.albumName = albumName;
+
+  track.artistId = `internal-artist-${createSlug(artistName)}`;
+
+  track.albumId = albumName
+    ? `internal-album-${createSlug(artistName)}-${createSlug(albumName)}`
+    : null;
+
+  /*
+    |--------------------------------------------------------------------------
+    | Optional cover replacement
+    |--------------------------------------------------------------------------
+    */
+
+  const oldImageStorageKey = track.imageStorageKey;
+
+  let newlyUploadedCoverKey: string | null = null;
+
+  try {
+    /*
+      |--------------------------------------------------------------------------
+      | New uploaded cover
+      |--------------------------------------------------------------------------
+      */
+
+    if (input.coverFile) {
+      newlyUploadedCoverKey = await uploadAdminFile(input.coverFile, "covers");
+
+      track.imageStorageKey = newlyUploadedCoverKey;
+
+      track.imageUrl = "";
+    } else if (input.imageUrl !== undefined && input.imageUrl.trim()) {
+
+    /*
+      |--------------------------------------------------------------------------
+      | New external cover URL
+      |--------------------------------------------------------------------------
+      |
+      | Only used if no uploaded cover file exists.
+      |
+      */
+      const validatedImageUrl = validateImageUrl(input.imageUrl.trim());
+
+      track.imageUrl = validatedImageUrl;
+
+      track.imageStorageKey = null;
+    }
+
+    /*
+      |--------------------------------------------------------------------------
+      | Save Mongo document
+      |--------------------------------------------------------------------------
+      */
+
+    await track.save();
+
+    /*
+      |--------------------------------------------------------------------------
+      | Remove previous S3 cover after successful save
+      |--------------------------------------------------------------------------
+      */
+
+    const coverWasReplaced =
+      Boolean(input.coverFile) || Boolean(input.imageUrl?.trim());
+
+    if (
+      coverWasReplaced &&
+      oldImageStorageKey &&
+      oldImageStorageKey !== track.imageStorageKey
+    ) {
+      await deleteAdminObject(oldImageStorageKey);
+    }
+  } catch (error) {
+    /*
+      |--------------------------------------------------------------------------
+      | Cleanup newly uploaded cover if Mongo save failed
+      |--------------------------------------------------------------------------
+      */
+
+    if (newlyUploadedCoverKey && newlyUploadedCoverKey !== oldImageStorageKey) {
+      await deleteAdminObject(newlyUploadedCoverKey).catch(() => {
+        // Best-effort cleanup.
+      });
+    }
+
+    throw error;
+  }
+
+  const resolvedImageUrl = track.imageStorageKey
+    ? getCloudFrontMediaUrl(track.imageStorageKey)
+    : track.imageUrl;
+
+  const hlsUrl =
+    track.processingStatus === "ready" && track.hlsMasterStorageKey
+      ? getCloudFrontMediaUrl(track.hlsMasterStorageKey)
+      : null;
+
+  return {
+    id: String(track._id),
+
+    title: track.title,
+
+    artistName: track.artistName,
+
+    albumName: track.albumName,
+
+    durationSeconds: track.durationSeconds,
+
+    imageUrl: resolvedImageUrl,
+
+    processingStatus: track.processingStatus,
+
+    processingError: track.processingError,
+
+    isDiscoverable: track.isDiscoverable,
+
+    hlsUrl,
+
+    createdAt: track.createdAt,
+  };
+};
+
+/*
+|--------------------------------------------------------------------------
+| Update discover visibility
+|--------------------------------------------------------------------------
+*/
+
+export const updateAdminTrackDiscoverability = async (
+  trackId: string,
+  isDiscoverable: boolean,
+) => {
+  validateTrackId(trackId);
+
+  const track = await Track.findById(trackId);
+
+  if (!track) {
+    throw new ApiError(404, "Track not found");
+  }
+
+  if (track.source !== "s3") {
+    throw new ApiError(400, "Only uploaded tracks can be managed here");
+  }
+
+  /*
+    |--------------------------------------------------------------------------
+    | Only READY tracks can become discoverable
+    |--------------------------------------------------------------------------
+    |
+    | Hiding is always allowed.
+    |
+    */
+
+  if (isDiscoverable && track.processingStatus !== "ready") {
+    throw new ApiError(409, "Only ready tracks can be made discoverable");
+  }
+
+  track.isDiscoverable = isDiscoverable;
+
+  await track.save();
+
+  return {
+    id: String(track._id),
+
+    isDiscoverable: track.isDiscoverable,
+  };
 };
 
 /*

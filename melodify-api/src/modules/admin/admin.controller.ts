@@ -8,6 +8,8 @@ import {
   getAdminTrackProcessingStatus,
   listAdminTracks,
   retryAdminTrackProcessing,
+  updateAdminTrack,
+  updateAdminTrackDiscoverability,
 } from "./admin-track.service.js";
 
 /*
@@ -199,6 +201,99 @@ export const deleteAdminTrackController = async (
     success: true,
 
     message: "Track deleted successfully",
+
+    data: result,
+  });
+};
+
+/*
+|--------------------------------------------------------------------------
+| Update track metadata
+|--------------------------------------------------------------------------
+*/
+
+export const updateAdminTrackController = async (
+  req: Request<{
+    id: string;
+  }>,
+  res: Response,
+): Promise<void> => {
+  const coverFile = req.file;
+
+  const title = String(req.body.title ?? "");
+
+  const artistName = String(req.body.artistName ?? "");
+
+  const albumName =
+    req.body.albumName !== undefined ? String(req.body.albumName) : undefined;
+
+  /*
+    |--------------------------------------------------------------------------
+    | imageUrl is OPTIONAL
+    |--------------------------------------------------------------------------
+    |
+    | Missing imageUrl:
+    | → keep current cover
+    |
+    | Non-empty imageUrl:
+    | → replace current cover with external URL
+    |
+    */
+
+  const imageUrl =
+    req.body.imageUrl !== undefined ? String(req.body.imageUrl) : undefined;
+
+  const track = await updateAdminTrack(req.params.id, {
+    title,
+
+    artistName,
+
+    albumName,
+
+    coverFile,
+
+    imageUrl,
+  });
+
+  res.status(200).json({
+    success: true,
+
+    message: "Track updated successfully",
+
+    data: track,
+  });
+};
+
+/*
+|--------------------------------------------------------------------------
+| Update discoverability
+|--------------------------------------------------------------------------
+*/
+
+export const updateAdminTrackDiscoverabilityController = async (
+  req: Request<{
+    id: string;
+  }>,
+  res: Response,
+): Promise<void> => {
+  const { isDiscoverable } = req.body;
+
+  if (typeof isDiscoverable !== "boolean") {
+    throw new ApiError(400, "isDiscoverable must be a boolean");
+  }
+
+  const result = await updateAdminTrackDiscoverability(
+    req.params.id,
+
+    isDiscoverable,
+  );
+
+  res.status(200).json({
+    success: true,
+
+    message: isDiscoverable
+      ? "Track is now visible in Discover"
+      : "Track hidden from Discover",
 
     data: result,
   });
