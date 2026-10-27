@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 
+import mongoose from "mongoose";
+
 import { Track } from "../track/track.model.js";
 
 import { ApiError } from "../../utils/ApiError.js";
@@ -7,6 +9,8 @@ import { ApiError } from "../../utils/ApiError.js";
 import { uploadAdminFile } from "./admin-storage.service.js";
 
 import { enqueueAudioProcessing } from "../../queues/audio-processing.queue.js";
+
+import { getCloudFrontMediaUrl } from "../track/cloudfront-media.service.js";
 
 interface CreateAdminTrackInput {
   title: string;
@@ -18,21 +22,6 @@ interface CreateAdminTrackInput {
   durationSeconds: number;
 
   audioFile: Express.Multer.File;
-
-  /*
-  |--------------------------------------------------------------------------
-  | Cover source
-  |--------------------------------------------------------------------------
-  |
-  | Admin can provide:
-  |
-  | 1. coverFile
-  | OR
-  | 2. imageUrl
-  |
-  | At least one is required.
-  |
-  */
 
   coverFile?: Express.Multer.File;
 
@@ -67,6 +56,12 @@ const validateImageUrl = (imageUrl: string): string => {
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| Create admin track
+|--------------------------------------------------------------------------
+*/
+
 export const createAdminTrack = async (input: CreateAdminTrackInput) => {
   const title = input.title.trim();
 
@@ -96,13 +91,6 @@ export const createAdminTrack = async (input: CreateAdminTrackInput) => {
     |--------------------------------------------------------------------------
     | Cover validation
     |--------------------------------------------------------------------------
-    |
-    | At least one required:
-    |
-    | coverFile
-    | OR
-    | imageUrl
-    |
     */
 
   if (!input.coverFile && !input.imageUrl) {
@@ -111,7 +99,7 @@ export const createAdminTrack = async (input: CreateAdminTrackInput) => {
 
   /*
     |--------------------------------------------------------------------------
-    | Upload audio to S3
+    | Upload original audio
     |--------------------------------------------------------------------------
     */
 
@@ -121,17 +109,6 @@ export const createAdminTrack = async (input: CreateAdminTrackInput) => {
     |--------------------------------------------------------------------------
     | Resolve cover
     |--------------------------------------------------------------------------
-    |
-    | Priority:
-    |
-    | coverFile > imageUrl
-    |
-    | If cover file exists:
-    | → upload cover to S3
-    |
-    | If only imageUrl exists:
-    | → save external URL directly
-    |
     */
 
   let imageStorageKey: string | null = null;
@@ -160,24 +137,8 @@ export const createAdminTrack = async (input: CreateAdminTrackInput) => {
 
   /*
     |--------------------------------------------------------------------------
-    | Create MongoDB track
+    | Create Mongo track
     |--------------------------------------------------------------------------
-    |
-    | NOTE:
-    |
-    | For an uploaded S3 cover:
-    |
-    | imageStorageKey contains the private S3 object key.
-    | imageUrl remains empty for now.
-    |
-    | Later:
-    | S3/CloudFront media delivery will generate the actual image URL.
-    |
-    | For an external cover:
-    |
-    | imageUrl contains the external URL.
-    | imageStorageKey is null.
-    |
     */
 
   const track = await Track.create({
@@ -221,10 +182,10 @@ export const createAdminTrack = async (input: CreateAdminTrackInput) => {
   });
 
   /*
-|--------------------------------------------------------------------------
-| Queue HLS processing
-|--------------------------------------------------------------------------
-*/
+    |--------------------------------------------------------------------------
+    | Queue HLS processing
+    |--------------------------------------------------------------------------
+    */
 
   try {
     await enqueueAudioProcessing(String(track._id));
@@ -241,4 +202,64 @@ export const createAdminTrack = async (input: CreateAdminTrackInput) => {
   }
 
   return track;
+};
+
+/*
+|--------------------------------------------------------------------------
+| Get admin track processing status
+|--------------------------------------------------------------------------
+|
+| Used by admin upload UI for polling.
+|
+| uploaded
+| ↓
+| processing
+| ↓
+| ready / failed
+|
+*/
+
+export const getAdminTrackProcessingStatus = async (trackId: string) => {
+  if (!mongoose.isValidObjectId(trackId)) {
+    throw new ApiError(400, "Invalid track ID");
+  }
+
+  const track = await Track.findById(trackId).select(
+    [
+      "_id",
+      "title",
+      "source",
+      "processingStatus",
+      "processingError",
+      "hlsMasterStorageKey",
+    ].join(" "),
+  );
+
+  if (!track) {
+    throw new ApiError(404, "Track not found");
+  }
+
+  if (track.source !== "s3") {
+    throw new ApiError(
+      400,
+      "Processing status is only available for uploaded tracks",
+    );
+  }
+
+  const hlsUrl =
+    track.processingStatus === "ready" && track.hlsMasterStorageKey
+      ? getCloudFrontMediaUrl(track.hlsMasterStorageKey)
+      : null;
+
+  return {
+    id: String(track._id),
+
+    title: track.title,
+
+    processingStatus: track.processingStatus,
+
+    processingError: track.processingError,
+
+    hlsUrl,
+  };
 };

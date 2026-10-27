@@ -5,11 +5,18 @@ import { requireAuth, requireAdmin } from "../../middleware/auth.middleware.js";
 import {
   adminTestController,
   createAdminTrackController,
+  getAdminTrackProcessingStatusController,
 } from "./admin.controller.js";
 
 import { adminTrackUpload } from "./admin-upload.middleware.js";
 
 const router = Router();
+
+/*
+|--------------------------------------------------------------------------
+| Admin test
+|--------------------------------------------------------------------------
+*/
 
 router.get(
   "/test",
@@ -20,6 +27,31 @@ router.get(
 
   adminTestController,
 );
+
+/*
+|--------------------------------------------------------------------------
+| Track processing status
+|--------------------------------------------------------------------------
+|
+| GET /api/v1/admin/tracks/:id/status
+|
+*/
+
+router.get(
+  "/tracks/:id/status",
+
+  requireAuth,
+
+  requireAdmin,
+
+  getAdminTrackProcessingStatusController,
+);
+
+/*
+|--------------------------------------------------------------------------
+| Upload track
+|--------------------------------------------------------------------------
+*/
 
 router.post(
   "/tracks",

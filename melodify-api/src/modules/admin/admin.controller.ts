@@ -2,7 +2,10 @@ import type { Request, Response } from "express";
 
 import { ApiError } from "../../utils/ApiError.js";
 
-import { createAdminTrack } from "./admin-track.service.js";
+import {
+  createAdminTrack,
+  getAdminTrackProcessingStatus,
+} from "./admin-track.service.js";
 
 /*
 |--------------------------------------------------------------------------
@@ -46,7 +49,7 @@ export const createAdminTrackController = async (
 
   /*
     |--------------------------------------------------------------------------
-    | Audio is always required
+    | Audio required
     |--------------------------------------------------------------------------
     */
 
@@ -56,10 +59,7 @@ export const createAdminTrackController = async (
 
   /*
     |--------------------------------------------------------------------------
-    | Cover can come from either:
-    |
-    | 1. uploaded cover file
-    | 2. external imageUrl
+    | Cover file OR imageUrl
     |--------------------------------------------------------------------------
     */
 
@@ -111,5 +111,26 @@ export const createAdminTrackController = async (
 
       isDiscoverable: track.isDiscoverable,
     },
+  });
+};
+
+/*
+|--------------------------------------------------------------------------
+| Track processing status
+|--------------------------------------------------------------------------
+*/
+
+export const getAdminTrackProcessingStatusController = async (
+  req: Request<{
+    id: string;
+  }>,
+  res: Response,
+): Promise<void> => {
+  const status = await getAdminTrackProcessingStatus(req.params.id);
+
+  res.status(200).json({
+    success: true,
+
+    data: status,
   });
 };
