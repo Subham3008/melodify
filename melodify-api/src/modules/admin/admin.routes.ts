@@ -1,11 +1,14 @@
 import { Router } from "express";
 
-import { requireAuth, requireAdmin } from "../../middleware/auth.middleware.js";
+import { requireAdmin, requireAuth } from "../../middleware/auth.middleware.js";
 
 import {
   adminTestController,
   createAdminTrackController,
+  deleteAdminTrackController,
   getAdminTrackProcessingStatusController,
+  listAdminTracksController,
+  retryAdminTrackProcessingController,
 } from "./admin.controller.js";
 
 import { adminTrackUpload } from "./admin-upload.middleware.js";
@@ -30,11 +33,24 @@ router.get(
 
 /*
 |--------------------------------------------------------------------------
-| Track processing status
+| Admin uploaded tracks
 |--------------------------------------------------------------------------
-|
-| GET /api/v1/admin/tracks/:id/status
-|
+*/
+
+router.get(
+  "/tracks",
+
+  requireAuth,
+
+  requireAdmin,
+
+  listAdminTracksController,
+);
+
+/*
+|--------------------------------------------------------------------------
+| Processing status
+|--------------------------------------------------------------------------
 */
 
 router.get(
@@ -45,6 +61,38 @@ router.get(
   requireAdmin,
 
   getAdminTrackProcessingStatusController,
+);
+
+/*
+|--------------------------------------------------------------------------
+| Retry failed processing
+|--------------------------------------------------------------------------
+*/
+
+router.post(
+  "/tracks/:id/retry",
+
+  requireAuth,
+
+  requireAdmin,
+
+  retryAdminTrackProcessingController,
+);
+
+/*
+|--------------------------------------------------------------------------
+| Delete uploaded track
+|--------------------------------------------------------------------------
+*/
+
+router.delete(
+  "/tracks/:id",
+
+  requireAuth,
+
+  requireAdmin,
+
+  deleteAdminTrackController,
 );
 
 /*
