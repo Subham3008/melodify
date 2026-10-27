@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { uploadAdminTrack } from "@/infrastructure/api/admin-track.api";
+import {
+  getAdminTrackProcessingStatus,
+  uploadAdminTrack,
+} from "@/infrastructure/api/admin-track.api";
 
 const INITIAL_FORM = {
   title: "",
@@ -10,6 +13,8 @@ const INITIAL_FORM = {
   albumName: "",
   coverImageUrl: "",
 };
+
+const TERMINAL_STATUSES = ["ready", "failed"];
 
 export default function AdminTrackUploadForm() {
   const [form, setForm] = useState(INITIAL_FORM);
@@ -23,6 +28,8 @@ export default function AdminTrackUploadForm() {
   const [uploading, setUploading] = useState(false);
 
   const [error, setError] = useState("");
+
+  const [statusError, setStatusError] = useState("");
 
   const [uploadedTrack, setUploadedTrack] = useState(null);
 
@@ -50,6 +57,102 @@ export default function AdminTrackUploadForm() {
 
   /*
   |--------------------------------------------------------------------------
+  | Live processing status polling
+  |--------------------------------------------------------------------------
+  |
+  | uploaded
+  | ↓
+  | processing
+  | ↓
+  | ready / failed
+  |
+  | Poll every 2 seconds.
+  |
+  */
+
+  useEffect(() => {
+    const trackId = uploadedTrack?.id;
+
+    const currentStatus = uploadedTrack?.processingStatus;
+
+    if (!trackId) {
+      return;
+    }
+
+    if (TERMINAL_STATUSES.includes(currentStatus)) {
+      return;
+    }
+
+    let cancelled = false;
+
+    let timeoutId = null;
+
+    const pollStatus = async () => {
+      try {
+        const response = await getAdminTrackProcessingStatus(trackId);
+
+        if (cancelled) {
+          return;
+        }
+
+        const statusData = response?.data ?? response;
+
+        setStatusError("");
+
+        setUploadedTrack((current) => ({
+          ...current,
+          ...statusData,
+        }));
+
+        /*
+          |--------------------------------------------------------------------------
+          | Stop polling after ready / failed
+          |--------------------------------------------------------------------------
+          */
+
+        if (TERMINAL_STATUSES.includes(statusData?.processingStatus)) {
+          return;
+        }
+
+        timeoutId = window.setTimeout(pollStatus, 2000);
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error("Unable to poll track processing status:", err);
+
+        setStatusError(err?.message ?? "Unable to check processing status.");
+
+        /*
+          |--------------------------------------------------------------------------
+          | Retry transient status errors
+          |--------------------------------------------------------------------------
+          */
+
+        timeoutId = window.setTimeout(pollStatus, 2000);
+      }
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | First status check
+    |--------------------------------------------------------------------------
+    */
+
+    timeoutId = window.setTimeout(pollStatus, 1000);
+
+    return () => {
+      cancelled = true;
+
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [uploadedTrack?.id, uploadedTrack?.processingStatus]);
+
+  /*
+  |--------------------------------------------------------------------------
   | Input change
   |--------------------------------------------------------------------------
   */
@@ -59,6 +162,7 @@ export default function AdminTrackUploadForm() {
 
     setForm((current) => ({
       ...current,
+
       [name]: value,
     }));
   };
@@ -115,8 +219,13 @@ export default function AdminTrackUploadForm() {
 
   /*
   |--------------------------------------------------------------------------
-  | Reset
+  | Reset upload inputs
   |--------------------------------------------------------------------------
+  |
+  | uploadedTrack intentionally reset nahi karte.
+  |
+  | Because status polling ko track ID chahiye.
+  |
   */
 
   const resetForm = () => {
@@ -151,6 +260,8 @@ export default function AdminTrackUploadForm() {
     event.preventDefault();
 
     setError("");
+
+    setStatusError("");
 
     setUploadedTrack(null);
 
@@ -205,6 +316,12 @@ export default function AdminTrackUploadForm() {
 
       const track = response?.data ?? response?.track ?? response;
 
+      /*
+        |--------------------------------------------------------------------------
+        | Start live processing UI
+        |--------------------------------------------------------------------------
+        */
+
       setUploadedTrack(track);
 
       resetForm();
@@ -215,6 +332,41 @@ export default function AdminTrackUploadForm() {
     } finally {
       setUploading(false);
     }
+  };
+
+  /*
+  |--------------------------------------------------------------------------
+  | Processing UI helpers
+  |--------------------------------------------------------------------------
+  */
+
+  const processingStatus = uploadedTrack?.processingStatus;
+
+  const isProcessing =
+    processingStatus === "uploaded" || processingStatus === "processing";
+
+  const isReady = processingStatus === "ready";
+
+  const isFailed = processingStatus === "failed";
+
+  const getStatusText = () => {
+    if (processingStatus === "uploaded") {
+      return "Queued for processing...";
+    }
+
+    if (processingStatus === "processing") {
+      return "Generating adaptive HLS audio...";
+    }
+
+    if (processingStatus === "ready") {
+      return "HLS streaming is ready";
+    }
+
+    if (processingStatus === "failed") {
+      return "Audio processing failed";
+    }
+
+    return "";
   };
 
   const inputClass = `
@@ -354,6 +506,7 @@ export default function AdminTrackUploadForm() {
               if (file) {
                 setForm((current) => ({
                   ...current,
+
                   coverImageUrl: "",
                 }));
               }
@@ -414,7 +567,7 @@ export default function AdminTrackUploadForm() {
         </div>
       )}
 
-      {/* ERROR */}
+      {/* FORM ERROR */}
 
       {error && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
@@ -422,23 +575,97 @@ export default function AdminTrackUploadForm() {
         </div>
       )}
 
-      {/* SUCCESS */}
+      {/* LIVE PROCESSING STATUS */}
 
       {uploadedTrack && (
-        <div className="rounded-lg border border-[#1ed760]/30 bg-[#1ed760]/10 px-3 py-2">
-          <p className="text-sm font-semibold text-[#1ed760]">
-            Track uploaded successfully ✓
-          </p>
+        <div
+          className={`
+            rounded-xl
+            border
+            px-4
+            py-3
 
-          {uploadedTrack.processingStatus && (
-            <p className="mt-1 text-xs text-neutral-400">
-              Processing: {uploadedTrack.processingStatus}
-            </p>
-          )}
+            ${
+              isFailed
+                ? "border-red-500/30 bg-red-500/10"
+                : "border-[#1ed760]/30 bg-[#1ed760]/10"
+            }
+          `}
+        >
+          <div className="flex items-start gap-3">
+            {/* STATUS ICON */}
+
+            <div className="mt-0.5">
+              {isProcessing && (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#1ed760]/30 border-t-[#1ed760]" />
+              )}
+
+              {isReady && (
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1ed760] text-xs font-black text-black">
+                  ✓
+                </div>
+              )}
+
+              {isFailed && (
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-black text-white">
+                  ×
+                </div>
+              )}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p
+                className={`
+                  text-sm
+                  font-semibold
+
+                  ${isFailed ? "text-red-300" : "text-[#1ed760]"}
+                `}
+              >
+                {isReady
+                  ? "Track ready"
+                  : isFailed
+                    ? "Processing failed"
+                    : "Track uploaded"}
+              </p>
+
+              <p className="mt-1 text-xs text-neutral-300">{getStatusText()}</p>
+
+              {uploadedTrack.title && (
+                <p className="mt-1 truncate text-xs text-neutral-500">
+                  {uploadedTrack.title}
+                </p>
+              )}
+
+              {/* FAILED MESSAGE */}
+
+              {isFailed && uploadedTrack.processingError && (
+                <p className="mt-2 wrap-break-word text-xs text-red-300">
+                  {uploadedTrack.processingError}
+                </p>
+              )}
+
+              {/* READY */}
+
+              {isReady && uploadedTrack.hlsUrl && (
+                <p className="mt-2 text-xs text-neutral-400">
+                  Adaptive HLS stream generated successfully.
+                </p>
+              )}
+
+              {/* POLLING ERROR */}
+
+              {statusError && !isReady && !isFailed && (
+                <p className="mt-2 text-xs text-yellow-400">
+                  Status check retrying: {statusError}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* BUTTON */}
+      {/* UPLOAD BUTTON */}
 
       <button
         type="submit"

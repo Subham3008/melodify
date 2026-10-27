@@ -3,6 +3,12 @@ const API_URL =
     .NEXT_PUBLIC_API_URL ??
   "http://localhost:4000/api/v1";
 
+/*
+|--------------------------------------------------------------------------
+| Upload admin track
+|--------------------------------------------------------------------------
+*/
+
 export async function uploadAdminTrack({
   title,
   artistName,
@@ -14,12 +20,6 @@ export async function uploadAdminTrack({
 }) {
   const formData =
     new FormData();
-
-  /*
-  |--------------------------------------------------------------------------
-  | Required metadata
-  |--------------------------------------------------------------------------
-  */
 
   formData.append(
     "title",
@@ -36,12 +36,6 @@ export async function uploadAdminTrack({
     String(durationSeconds),
   );
 
-  /*
-  |--------------------------------------------------------------------------
-  | Optional album
-  |--------------------------------------------------------------------------
-  */
-
   if (albumName?.trim()) {
     formData.append(
       "albumName",
@@ -49,29 +43,12 @@ export async function uploadAdminTrack({
     );
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Audio
-  |--------------------------------------------------------------------------
-  */
-
   if (audioFile) {
     formData.append(
       "audio",
       audioFile,
     );
   }
-
-  /*
-  |--------------------------------------------------------------------------
-  | Cover
-  |
-  | Backend accepts:
-  | 1. uploaded cover file
-  | OR
-  | 2. imageUrl
-  |--------------------------------------------------------------------------
-  */
 
   if (coverFile) {
     formData.append(
@@ -87,33 +64,14 @@ export async function uploadAdminTrack({
     );
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Request
-  |--------------------------------------------------------------------------
-  */
-
   const response =
     await fetch(
       `${API_URL}/admin/tracks`,
       {
         method: "POST",
 
-        /*
-        Important:
-        Authentication is cookie based.
-        */
-
-        credentials: "include",
-
-        /*
-        Do NOT manually set
-        Content-Type here.
-
-        Browser automatically
-        creates the multipart
-        boundary.
-        */
+        credentials:
+          "include",
 
         body: formData,
       },
@@ -129,6 +87,44 @@ export async function uploadAdminTrack({
       data?.message ??
       data?.error ??
       "Unable to upload track.",
+    );
+  }
+
+  return data;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Get processing status
+|--------------------------------------------------------------------------
+*/
+
+export async function getAdminTrackProcessingStatus(
+  trackId,
+) {
+  const response =
+    await fetch(
+      `${API_URL}/admin/tracks/${trackId}/status`,
+      {
+        method: "GET",
+
+        credentials:
+          "include",
+
+        cache: "no-store",
+      },
+    );
+
+  const data =
+    await response
+      .json()
+      .catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ??
+      data?.error ??
+      "Unable to get track processing status.",
     );
   }
 
