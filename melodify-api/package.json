@@ -8,7 +8,8 @@
     "dev": "tsx watch src/server.ts",
     "worker:dev": "tsx watch src/workers/listening.worker.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/production.js",
+    "start:api": "node dist/server.js",
     "worker:start": "node dist/workers/listening.worker.js",
     "audio-worker:dev": "tsx watch src/workers/audio-processing.worker.ts",
     "audio-worker:start": "node dist/workers/audio-processing.worker.js"
