@@ -14,6 +14,7 @@ import { env } from "../../config/env.js";
 import { ApiError } from "../../utils/ApiError.js";
 
 const isProduction = env.NODE_ENV === "production";
+const cookieSameSite = isProduction ? "none" : "lax";
 
 const setAuthCookies = (
   res: Response,
@@ -23,16 +24,14 @@ const setAuthCookies = (
   res.cookie("accessToken", accessToken, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "lax",
-
+    sameSite: cookieSameSite,
     maxAge: env.ACCESS_TOKEN_EXPIRES_IN * 1000,
   });
 
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "lax",
-
+    sameSite: cookieSameSite,
     maxAge: env.REFRESH_TOKEN_EXPIRES_IN * 1000,
   });
 };
@@ -41,13 +40,13 @@ const clearAuthCookies = (res: Response): void => {
   res.clearCookie("accessToken", {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "lax",
+    sameSite: cookieSameSite,
   });
 
   res.clearCookie("refreshToken", {
     httpOnly: true,
     secure: isProduction,
-    sameSite: "lax",
+    sameSite: cookieSameSite,
   });
 };
 
